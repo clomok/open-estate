@@ -1,8 +1,8 @@
 """Reset by Ops Manager
 
-Revision ID: 6a6fee169470
+Revision ID: a65fb10c58ee
 Revises: 
-Create Date: 2026-01-02 20:48:16.326537
+Create Date: 2026-01-02 21:18:45.091945
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '6a6fee169470'
+revision = 'a65fb10c58ee'
 down_revision = None
 branch_labels = None
 depends_on = None

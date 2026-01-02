@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 1000px; margin: 0 auto;">
+<div style="max-width: 1200px; margin: 0 auto;">
     
     <div style="margin-bottom: 1.5rem;">
         <a href="{{ url_for('main.assets_view') }}" style="display: inline-flex; align-items: center; color: #6b7280; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
@@ -25,7 +25,7 @@
         </div>
         <div style="text-align: right;">
             <div style="font-size: 2.5rem; font-weight: bold; color: {% if asset.value_estimated < 0 %}#ef4444{% else %}#10b981{% endif %};">
-                ${{ "{:,.0f}".format(asset.value_estimated) }}
+                {{ asset.value_estimated | currency }}
             </div>
             <div style="color: #666; font-size: 0.9rem;">Current Estimated Value</div>
             <a href="{{ url_for('manage.manage_asset', id=asset.id) }}" style="display: inline-block; margin-top: 1rem; color: #2563eb; text-decoration: none;">
@@ -70,7 +70,7 @@
                             {% for record in asset.appraisals %}
                             <tr>
                                 <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
-                                <td style="font-weight: bold;">${{ "{:,.0f}".format(record.value) }}</td>
+                                <td style="font-weight: bold;">{{ record.value | currency }}</td>
                                 <td>{{ record.source }}</td>
                                 <td style="color: #666; font-size: 0.9rem;">{{ record.notes or '' }}</td>
                                 <td style="text-align: right;">
@@ -118,7 +118,13 @@
                         {% for key, value in asset.attributes.items() %}
                         <div style="margin-bottom: 0.75rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.5rem;">
                             <div style="font-size: 0.8rem; color: #999; text-transform: uppercase;">{{ key|replace('_', ' ') }}</div>
-                            <div style="font-size: 1rem;">{{ value }}</div>
+                            <div style="font-size: 1rem;">
+                                {% if 'price' in key or 'value' in key or 'balance' in key %}
+                                    {{ value | currency }}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </div>
                         </div>
                         {% endfor %}
                     {% else %}
@@ -218,7 +224,7 @@
                         {% endif %}
                     </td>
                     <td>{{ bill.frequency }}</td>
-                    <td>${{ bill.amount_estimated }}</td>
+                    <td>{{ bill.amount_estimated | currency }}</td>
                     <td>{{ bill.next_due_date or '-' }}</td>
                     <td style="text-align:right;">
                         <a href="{{ url_for('manage.delete_subitem', asset_id=asset.id, subitem_type='bill', item_id=bill.id) }}" style="color:#ef4444;" onclick="return confirm('Remove bill?')">×</a>
@@ -350,7 +356,10 @@
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                scales: { x: { type: 'time', time: { unit: 'year' } } }
+                scales: { 
+                    x: { type: 'time', time: { unit: 'year' } },
+                    y: { ticks: { callback: function(val) { return val.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0}); } } }
+                }
             }
         });
     }

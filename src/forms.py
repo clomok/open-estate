@@ -35,6 +35,9 @@ class VehicleForm(BaseAssetForm):
     vin = StringField('VIN')
     license_plate = StringField('License Plate')
     location_keys = StringField('Spare Keys Location')
+    # Added Purchase Fields for Consistency
+    purchase_date = StringField('Date Purchased (YYYY-MM-DD)')
+    purchase_price = FloatField('Purchase Price ($)', validators=[Optional()])
     current_value = FloatField('Estimated Value ($)', validators=[Optional()])
 
 class BankAccountForm(BaseAssetForm):
@@ -79,7 +82,7 @@ def get_form_class(type_code):
         'Liability': LiabilityForm,
         'Jewelry': PersonalItemForm,
         'Art': PersonalItemForm,
-        'Other': BaseAssetForm
+        'Other': PersonalItemForm # Updated to treat 'Other' like Art/Jewelry
     }
     return mapping.get(type_code, BaseAssetForm)
 

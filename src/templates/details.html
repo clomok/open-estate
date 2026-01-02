@@ -2,7 +2,7 @@
 
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-    <h1>Details & Contacts</h1>
+    <h1>Contacts & People Hub</h1>
     <a href="{{ url_for('manage.create_person') }}" 
        style="background: var(--primary); color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; display: inline-block;">
         + Add Custom Contact
@@ -15,7 +15,7 @@
 
 <div class="grid-3">
     {% for person in family %}
-    <div class="summary-card" style="position: relative;">
+    <div class="summary-card" style="position: relative; display: flex; flex-direction: column;">
         <div style="position: absolute; top: 1rem; right: 1rem;">
             <a href="{{ url_for('manage.edit_person', id=person.id) }}" style="text-decoration: none; color: #9ca3af; margin-right: 0.5rem; font-size: 1.1rem;">✎</a>
             <a href="{{ url_for('manage.delete_person', id=person.id) }}" 
@@ -23,15 +23,31 @@
                style="text-decoration: none; color: #f87171; font-size: 1.1rem;">&times;</a>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-right: 2rem;">
+        <div style="margin-right: 2rem; margin-bottom: 0.5rem;">
             <h3 style="margin: 0; font-size: 1.25rem;">{{ person.name }}</h3>
+            <span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
+                {{ person.role }}
+            </span>
         </div>
         
-        <span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
-            {{ person.role }}
-        </span>
-        
-        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
+        <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            {% for asset in person.assets_owned %}
+                <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="text-decoration: none;">
+                    <span style="background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
+                        Owns: {{ asset.name }}
+                    </span>
+                </a>
+            {% endfor %}
+            {% for asset in person.future_assets %}
+                <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="text-decoration: none;">
+                    <span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
+                        Beneficiary: {{ asset.name }}
+                    </span>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
             {% if person.email %}
             <div style="margin-bottom: 0.5rem; display: flex; align-items: center;">
                 <span style="width: 20px; text-align: center; margin-right: 8px;">✉</span> 
@@ -71,7 +87,7 @@
 
 <div class="grid-3">
     {% for person in pros %}
-    <div class="summary-card" style="position: relative; border-left: 4px solid #059669;">
+    <div class="summary-card" style="position: relative; border-left: 4px solid #059669; display: flex; flex-direction: column;">
         <div style="position: absolute; top: 1rem; right: 1rem;">
             <a href="{{ url_for('manage.edit_person', id=person.id) }}" style="text-decoration: none; color: #9ca3af; margin-right: 0.5rem; font-size: 1.1rem;">✎</a>
             <a href="{{ url_for('manage.delete_person', id=person.id) }}" 
@@ -79,12 +95,24 @@
                style="text-decoration: none; color: #f87171; font-size: 1.1rem;">&times;</a>
         </div>
 
-        <h3 style="margin: 0; font-size: 1.25rem; margin-right: 2rem;">{{ person.name }}</h3>
-        <span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
-            {{ person.role }}
-        </span>
+        <div style="margin-right: 2rem; margin-bottom: 0.5rem;">
+            <h3 style="margin: 0; font-size: 1.25rem;">{{ person.name }}</h3>
+            <span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
+                {{ person.role }}
+            </span>
+        </div>
 
-        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
+        <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            {% for job in person.service_jobs %}
+                <a href="{{ url_for('main.asset_details', id=job.asset.id) }}" style="text-decoration: none;">
+                    <span style="background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
+                        {{ job.role }} for: {{ job.asset.name }}
+                    </span>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div style="margin-top: auto; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
             {% if person.email %}
             <div style="margin-bottom: 0.5rem;">{{ person.email }}</div>
             {% endif %}

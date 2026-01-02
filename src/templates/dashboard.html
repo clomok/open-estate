@@ -7,7 +7,7 @@
     <div class="summary-card">
         <div class="summary-label">Net Worth</div>
         <div class="summary-value {% if net_worth >= 0 %}text-green{% else %}text-red{% endif %}">
-            ${{ "{:,.0f}".format(net_worth) }}
+            {{ net_worth | currency }}
         </div>
         <span style="font-size: 0.9rem; color: #666;">Total Estate Value</span>
     </div>
@@ -15,14 +15,14 @@
     <div class="summary-card">
         <div class="summary-label">Total Assets</div>
         <div class="summary-value text-green">
-            ${{ "{:,.0f}".format(total_assets) }}
+            {{ total_assets | currency }}
         </div>
     </div>
 
     <div class="summary-card">
         <div class="summary-label">Liabilities</div>
         <div class="summary-value text-red">
-            ${{ "{:,.0f}".format(total_liabilities) }}
+            {{ total_liabilities | currency }}
         </div>
     </div>
 </div>
@@ -140,14 +140,12 @@
         const x = eventPosition.x;
         const y = eventPosition.y;
 
-        // If mouse is on left half, anchor tooltip to Right Edge
         if (x < width / 2) {
-            this.options.xAlign = 'right'; // Align text/box to the left of the anchor
+            this.options.xAlign = 'right';
             return { x: right, y: y };
         } 
-        // If mouse is on right half, anchor tooltip to Left Edge
         else {
-            this.options.xAlign = 'left'; // Align text/box to the right of the anchor
+            this.options.xAlign = 'left';
             return { x: left, y: y };
         }
     };
@@ -158,13 +156,11 @@
     }
 
     function getChartConfig() {
-        // Filter datasets based on checkboxes
         const visibleIds = Array.from(document.querySelectorAll('.asset-checkbox:checked')).map(cb => parseInt(cb.value));
         const activeDatasets = chartData.datasets.filter(ds => visibleIds.includes(ds.id));
 
         let finalDatasets = [];
 
-        // 1. Calculate Total Net Worth Line
         let totalData = [];
         if (activeDatasets.length > 0) {
             totalData = chartData.dates.map((_, i) => {
@@ -181,7 +177,6 @@
                     backgroundColor: 'rgba(37, 99, 235, 0.1)',
                     borderWidth: 4,
                     fill: true,
-                    // Monotone prevents overshoot ("scoops") while keeping curves
                     cubicInterpolationMode: 'monotone', 
                     tension: 0.4,
                     pointRadius: 0,
@@ -189,18 +184,16 @@
                 });
             }
         } else {
-            // Stacked Mode
             finalDatasets = activeDatasets.map(ds => {
                 const stackGroup = ds.current_value >= 0 ? 'stack_assets' : 'stack_liabilities';
-                
                 return {
                     label: ds.label,
                     data: ds.data,
                     borderColor: ds.color,
-                    backgroundColor: ds.color + '33', // 20% opacity
+                    backgroundColor: ds.color + '33', 
                     borderWidth: 1,
                     fill: true,
-                    cubicInterpolationMode: 'monotone', // Smooths without scoops
+                    cubicInterpolationMode: 'monotone',
                     tension: 0.4,
                     pointRadius: 0,
                     pointHoverRadius: 4,
@@ -208,7 +201,6 @@
                 };
             });
 
-            // Add Net Worth Line
             finalDatasets.push({
                 label: 'Net Worth',
                 data: totalData,
@@ -217,7 +209,7 @@
                 borderWidth: 4, 
                 backgroundColor: 'transparent',
                 fill: false,
-                cubicInterpolationMode: 'monotone', // Consistent smoothing
+                cubicInterpolationMode: 'monotone',
                 tension: 0.4,
                 pointRadius: 0,
                 pointHoverRadius: 6,
@@ -242,21 +234,17 @@
                 plugins: {
                     legend: { 
                         display: currentMode === 'stacked',
-                        labels: {
-                            usePointStyle: true,
-                            boxWidth: 8
-                        }
+                        labels: { usePointStyle: true, boxWidth: 8 }
                     }, 
                     tooltip: {
-                        position: 'opposite', // USE CUSTOM POSITIONER
-                        yAlign: 'center', // Vertically center the tooltip on the Y point
+                        position: 'opposite',
+                        yAlign: 'center',
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
+                                if (label) { label += ': '; }
                                 if (context.parsed.y !== null) {
+                                    // Use standard formatter for consistency
                                     label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
                                 }
                                 return label;

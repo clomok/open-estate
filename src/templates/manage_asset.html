@@ -1,7 +1,20 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% if asset_id %}
+    {% set cancel_url = url_for('main.asset_details', id=asset_id) %}
+{% else %}
+    {% set cancel_url = url_for('main.assets_view') %}
+{% endif %}
+
 <div style="max-width: 700px; margin: 0 auto;">
+    
+    <div style="margin-bottom: 1.5rem;">
+        <a href="{{ cancel_url }}" onclick="return confirmDiscard(event)" style="display: inline-flex; align-items: center; color: #6b7280; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
+            <span style="margin-right: 0.5rem;">←</span> Cancel
+        </a>
+    </div>
+
     <h1 style="margin-bottom: 2rem;">{{ title }}</h1>
 
     {% if form.errors %}
@@ -28,6 +41,62 @@
                 {{ form.name(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="e.g. Primary Residence") }}
             </div>
 
+            {% if type_code in ['RealEstate', 'Vehicle'] %}
+            <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #166534; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                    Valuation & Purchase Info
+                </h4>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem; color: #166534;">Current Estimated Value</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #166534; font-weight: bold; font-size: 1.25rem;">$</span>
+                        {{ form.current_value(style="width: 100%; padding: 0.75rem 0.75rem 0.75rem 2rem; border: 1px solid #86efac; border-radius: 4px; font-size: 1.25rem; font-weight: bold; color: #166534;") }}
+                    </div>
+                </div>
+
+                <div class="grid-2-form">
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">Purchase Price</label>
+                        <div style="position: relative;">
+                            <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: bold;">$</span>
+                            {{ form.purchase_price(style="width: 100%; padding: 0.5rem 0.5rem 0.5rem 1.75rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">Purchase Date</label>
+                        {{ form.purchase_date(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="YYYY-MM-DD") }}
+                    </div>
+                </div>
+            </div>
+            
+            {% elif type_code in ['Art', 'Jewelry', 'Other'] %}
+            <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #166534; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                    Valuation & Appraisal Info
+                </h4>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem; color: #166534;">Appraised Value</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #166534; font-weight: bold; font-size: 1.25rem;">$</span>
+                        {{ form.current_value(style="width: 100%; padding: 0.75rem 0.75rem 0.75rem 2rem; border: 1px solid #86efac; border-radius: 4px; font-size: 1.25rem; font-weight: bold; color: #166534;") }}
+                    </div>
+                </div>
+
+                <div class="grid-2-form">
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">Appraiser Contact</label>
+                        {{ form.appraiser_info(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">Date Appraised</label>
+                        {{ form.appraisal_date(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="YYYY-MM-DD") }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
                 <h4 style="margin-top: 0; margin-bottom: 1rem; color: #4b5563; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
                     {{ type_code }} Details
@@ -35,10 +104,18 @@
                 
                 <div class="grid-2-form">
                     {% for field in form %}
-                        {% if field.name not in ['csrf_token', 'submit', 'name', 'is_in_trust', 'owner_id', 'asset_type'] %}
+                        {% if field.name not in ['csrf_token', 'submit', 'name', 'is_in_trust', 'owner_id', 'asset_type', 'current_value', 'purchase_price', 'purchase_date', 'appraiser_info', 'appraisal_date'] %}
                         <div style="margin-bottom: 1rem;">
                             <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ field.label }}</label>
-                            {{ field(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                            
+                            {% if field.type == 'FloatField' %}
+                            <div style="position: relative;">
+                                <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: bold;">$</span>
+                                {{ field(style="width: 100%; padding: 0.5rem 0.5rem 0.5rem 1.75rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                            </div>
+                            {% else %}
+                                {{ field(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                            {% endif %}
                         </div>
                         {% endif %}
                     {% endfor %}
@@ -55,8 +132,7 @@
                 {{ form.owner_id(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
-                <a href="{{ url_for('main.assets_view') }}" style="color: #666; text-decoration: none;">Cancel</a>
+            <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
                 {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
             </div>
         </form>
@@ -73,4 +149,29 @@
         .grid-2-form { grid-template-columns: 1fr 1fr; }
     }
 </style>
+
+<script>
+    var isDirty = false;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var form = document.querySelector('form');
+        
+        // Listen for user input
+        form.addEventListener('change', function() { isDirty = true; });
+        form.addEventListener('input', function() { isDirty = true; });
+        
+        // If form is submitted, we are clean
+        form.addEventListener('submit', function() { isDirty = false; });
+    });
+
+    function confirmDiscard(event) {
+        if (isDirty) {
+            if (!confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+                event.preventDefault();
+                return false;
+            }
+        }
+        return true;
+    }
+</script>
 {% endblock %}

@@ -22,6 +22,16 @@ ASSET_TYPES_META = [
     ('Other', 'Other Asset', '📦')
 ]
 
+def clean_number(value):
+    """Helper: format float as int if no decimal part, else float."""
+    try:
+        f = float(value)
+        if f.is_integer():
+            return int(f)
+        return f
+    except (ValueError, TypeError):
+        return value
+
 # --- ASSET MANAGEMENT ---
 
 @bp.route('/asset/select-type')
@@ -90,7 +100,8 @@ def create_asset_step2(type_code):
         flash('There were errors in your form submission. Please check below.', 'error')
 
     form.asset_type.data = type_code
-    return render_template('manage_asset.html', form=form, title=f"Add {type_code}", type_code=type_code, active_page='assets')
+    # PASS ASSET_ID=NONE for New Creation
+    return render_template('manage_asset.html', form=form, title=f"Add {type_code}", type_code=type_code, active_page='assets', asset_id=None)
 
 @bp.route('/asset/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -100,15 +111,23 @@ def manage_asset(id):
     form = FormClass(obj=asset)
 
     if request.method == 'GET':
+        # 1. Clean Core Values
         if hasattr(form, 'current_value'):
-            form.current_value.data = abs(asset.value_estimated)
+            form.current_value.data = clean_number(abs(asset.value_estimated))
         if hasattr(form, 'outstanding_balance'):
-            form.outstanding_balance.data = abs(asset.value_estimated)
+            form.outstanding_balance.data = clean_number(abs(asset.value_estimated))
             
+        # 2. Clean Attribute Values
         if asset.attributes:
             for field_name in asset.attributes:
                 if hasattr(form, field_name):
-                    getattr(form, field_name).data = asset.attributes[field_name]
+                    val = asset.attributes[field_name]
+                    field = getattr(form, field_name)
+                    # Only clean decimals if the field is a FloatField
+                    if field.type == 'FloatField':
+                        field.data = clean_number(val)
+                    else:
+                        field.data = val
 
     people = Person.query.all()
     form.owner_id.choices = [(0, '--- No Individual Owner ---')] + [(p.id, p.name) for p in people]
@@ -122,7 +141,8 @@ def manage_asset(id):
     elif request.method == 'POST':
         flash('Update failed. Please correct the errors below.', 'error')
 
-    return render_template('manage_asset.html', form=form, title=f"Edit {asset.asset_type}", type_code=asset.asset_type, active_page='assets')
+    # PASS ASSET_ID for Edit Context
+    return render_template('manage_asset.html', form=form, title=f"Edit {asset.asset_type}", type_code=asset.asset_type, active_page='assets', asset_id=asset.id)
 
 @bp.route('/asset/delete/<int:id>')
 @login_required

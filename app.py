@@ -16,6 +16,18 @@ def create_app(config_class=Config):
     # Import models so Alembic can detect them
     from src import models
 
+    # --- CUSTOM FILTERS ---
+    @app.template_filter('currency')
+    def currency_filter(value):
+        """Format currency: $1,000 or $1,000.50 (no decimals if integer)."""
+        try:
+            val = float(value)
+            if val.is_integer():
+                return "${:,.0f}".format(val)
+            return "${:,.2f}".format(val)
+        except (ValueError, TypeError):
+            return value
+
     # --- BLUEPRINT REGISTRATION ---
     from src.routes.auth import bp as auth_bp
     from src.routes.main import bp as main_bp
