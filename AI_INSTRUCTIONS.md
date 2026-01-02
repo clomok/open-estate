@@ -6,121 +6,146 @@
 - **Role:** Senior Software Architect & Developer.
 - **Goal:** Build a durable, self-hosted, offline-capable web application for family estate planning and transition management.
 - **Core Philosophy:**
-  1.  **Simplicity First:** Standard HTML/CSS, Python, SQLite. Avoid complex JS frameworks.
-  2.  **Durability:** The app must be runnable 10+ years from now. No external CDNs.
-  3.  **Visual Clarity:** Differentiate "Technical Data" from "Family Summaries."
-  4.  **Security:** Non-root Docker containers, local-only storage, CSRF protection.
+
+1. **Simplicity First:** Standard HTML/CSS, Python, SQLite. Avoid complex JS frameworks.
+2. **Durability:** The app must be runnable 10+ years from now. No external CDNs (Chart.js is currently CDN but flagged for local vendor).
+3. **Visual Clarity:** Differentiate "Technical Data" from "Family Summaries."
+4. **Mobile First:** Responsive design with a hybrid sidebar (Fixed on Desktop, Drawer on Mobile).
 
 ## 2. Technical Stack
 
 - **Language:** Python 3.11+
 - **Web Framework:** Flask 3.x
-- **Database:** SQLite (with `PRAGMA journal_mode=WAL` for concurrency).
+- **Database:** SQLite (WAL Mode Disabled for Windows Docker compatibility).
 - **ORM:** SQLAlchemy 2.x + Flask-Migrate (Alembic).
-- **Frontend:** Jinja2 Templates + Server-Side Rendering.
-- **Styling:** "Vendored" CSS (Tailwind-like utility classes stored in `src/static/css/style.css`).
-- **Forms:** Flask-WTF (Server-side validation & CSRF tokens).
-- **Infrastructure:** Docker Compose (Production-ready, restarts automatically).
+- **Frontend:** Jinja2 Templates + Vanilla CSS (No build steps).
+- **Charting:** Chart.js (via CDN).
+- **Infrastructure:** Docker Compose (Volume sync enabled for live development).
+- **OS Compatibility:** Optimized for Windows Host (LF line endings forced via `.gitattributes`).
 
 ## 3. Project Structure
 
 ```text
 open-estate-dashboard/
-├── ops.ps1                 # Operations script (Update, Logs, Shell)
+├── ops.ps1                 # Master Operations script (Update, Wipe, Seed, Logs)
+├── .gitattributes          # Enforces LF line endings (Critical for Docker/Windows)
 ├── .env                    # Secrets (Excluded from Git)
-├── docker-compose.yml      # Orchestration
-├── Dockerfile              # Build logic (Non-root user)
-├── requirements.txt        # Python dependencies
-├── app.py                  # Application Factory & Blueprints
-├── config.py               # Configuration loader
-├── instance/               # Persistent DB storage
-├── scripts/                # Utility scripts
-│   └── seed_example.py     # Public dummy data generator
+├── compose.yaml            # Docker orchestration (Mounts .:/app)
+├── app.py                  # Application Factory (WAL mode disabled)
+├── instance/               # Persistent DB storage (estate.db)
+├── scripts/
+│   ├── seed.py             # Personalized data seed
+│   └── seed_example.py     # Generic demo data seed
 └── src/
-    ├── extensions.py       # Shared extensions (db, migrate)
-    ├── models.py           # Database Schema
-    ├── forms.py            # WTForms definitions
-    ├── services/           # Logic Layer
-    │   ├── auth_service.py # Session management
-    │   ├── export_service.py # Backup logic (JSON+HTML Zip)
-    │   └── import_service.py # Restore logic
-    ├── routes/             # Web Handlers
-    │   ├── auth.py         # Login
-    │   ├── main.py         # Read-Only Views
-    │   ├── manage.py       # Write/Edit Views
-    │   └── settings.py     # Backup/Restore UI
-    └── templates/          # HTML Files (Base, Dashboard, Assets, etc.)
+    ├── models.py           # DB Schema (Person, Asset, Appraisal, Milestone)
+    ├── forms.py            # Polymorphic WTForms (RealEstateForm, VehicleForm, etc.)
+    ├── services/           # Logic Layer (Export, Import)
+    ├── routes/             # Web Handlers (Main, Manage, Settings)
+    └── templates/          # HTML (Asset Details, Ledger, Dashboard)
+
 ```
 
 ## 4. Current Feature Status
 
 ### ✅ Completed Features
 
-- **Infrastructure:** Secure Docker container with automated build script (`ops.ps1`).
-- **Authentication:** Single-user password protection (via `.env`).
-- **Dashboard:** Sticky sidebar layout with financial summaries (Net Worth, Totals).
+- **Infrastructure:**
+- Secure Docker container (non-root user).
+- `ops.ps1` for one-click maintenance (Wipe DB, Load Seed Data).
+- Live code synchronization via Docker volumes.
+
 - **Asset Management:**
-- CRUD (Create, Read, Update, Delete) for Assets.
-- **Dynamic Attributes:** "Idiot-proof" UI to add custom fields (VIN, Bank Name) stored as JSON.
-- **Liabilities Logic:** Negative asset values are treated as debts.
+- **Type-First Creation:** User selects category (Real Estate, Vehicle, etc.) before data entry.
+- **Polymorphic Forms:** Specific fields for specific types (e.g., VIN for cars, APN for houses).
+- **Dynamic Attributes:** Extra fields stored as JSON (`attributes` column).
+- **Consolidated Ledger:** Unified "Assets & Liabilities" view with Card layout.
+- **Valuation History:** `Appraisal` table tracks value over time.
+- **Visualization:** Interactive Line Chart for asset value history.
+
+- **UI/UX:**
+- **Hybrid Layout:** Sidebar uses Flexbox on Desktop (no overlap) and Slide-out Drawer on Mobile.
+- **Mobile Optimizations:** Touch-friendly targets, hamburger/arrow toggle.
+- **Navigation:** Back buttons and active state tracking.
 
 - **Durability:**
-- **Backup:** One-click export of `data.json` + `summary.html` (human readable).
-- **Restore:** JSON ingestion to overwrite DB.
+- **Backup:** JSON export + human-readable HTML summary.
+- **Restore:** JSON ingestion (full overwrite).
 
-- **Visuals:** Dedicated views for Planning (Timeline), Details (People), and FAQ.
+### ⏳ Roadmap / Pending
 
-### ⏳ Pending / Roadmap
+1. **Document Storage:**
 
-1. **Logic Engine (Milestone 4):**
+- [ ] Upload PDFs/Images for specific assets (stored in `instance/uploads`).
+- [ ] "Gallery" view for asset receipts/titles.
 
-- [ ] Automated "Health Check" on startup.
-- [ ] Auto-generate Tasks (e.g., "Asset X has no beneficiary").
-- [ ] Task Management UI (View/Complete tasks).
+2. **Logic Engine:**
 
-2. **Document Storage:**
-
-- [ ] Upload PDF/Images for specific assets (stored in `instance/uploads`).
+- [ ] Automated Health Checks (e.g., "Warn if Asset has no Beneficiary").
+- [ ] Auto-generate Tasks based on data.
 
 3. **Transition Protocol:**
 
-- [ ] "Activate Protocol" button for Trustees (unlocks specific instructions upon death/incapacity).
+- [ ] "In Case of Emergency" view for Trustees (unlocked via specific protocol).
 
-4. **Security Hardening:**
+## 5. Database Schema Key Points
 
-- [ ] Add Rate Limiting for login attempts.
+- **Asset:**
+- `asset_type`: String (RealEstate, Vehicle, Liability, etc.).
+- `value_estimated`: Float (Positive for Assets, Negative for Liabilities).
+- `attributes`: JSON (Stores VIN, Address, Account #).
+- `appraisals`: Relationship to `Appraisal` table (History).
 
-## 5. Database Schema (Key Highlights)
-
-- **Person:** `id`, `name`, `role`, `attributes` (JSON).
-- **Asset:** `id`, `name`, `type`, `value`, `is_in_trust`, `owner_id`, `attributes` (JSON).
-- **Task:** `id`, `title`, `status`, `auto_generated` (Boolean).
-- **Milestone:** `id`, `title`, `date_event`, `is_completed`.
-
-_Note: The `attributes` JSON column is used extensively for flexible data to avoid schema migrations for minor details._
+- **Appraisal:**
+- `date`, `value`, `source` (Zillow, Official, etc.).
 
 ## 6. Operational Commands (Cheatsheet)
 
-- **Update Code:** `.\ops.ps1` (Select 'Update') - Rebuilds container.
-- **View Logs:** `.\ops.ps1` (Select 'Logs').
-- **Database Migration:**
+**Using the Ops Manager (Recommended):**
 
 ```powershell
-.\ops.ps1 shell
-flask db migrate -m "message"
-flask db upgrade
+.\ops.ps1
+# Menu Options:
+# 1. Update (Rebuild container)
+# 5. Wipe DB (Resets DB & Restarts Server)
+# 6. Seed (Loads data from scripts/)
 
 ```
 
-- **Manual Backup:** Click "Download Backup" in Settings.
+**Manual Commands (Inside Container):**
+
+```bash
+# Enter Shell
+.\ops.ps1 shell
+
+# Reset Database Manually
+rm instance/estate.db
+rm -rf migrations
+flask db init
+flask db migrate -m "init"
+flask db upgrade
+
+# Run Seed
+python scripts/seed.py
+
+```
 
 ## 7. Development Guidelines
 
-1. **Modifying UI:** Edit `src/templates/`. If styling changes, edit `src/static/css/style.css`.
-2. **Modifying Logic:** Put heavy logic in `src/services/`. Keep routes thin.
-3. **New Dependencies:** Add to `requirements.txt` -> Run `.\ops.ps1` (Update).
-4. **Secrets:** NEVER commit `.env` or `scripts/seed.py`.
+1. **Modifying Assets:**
+
+- Add new types in `src/forms.py` (Form Class) AND `src/routes/manage.py` (`ASSET_TYPES_META`).
+- Ensure `save_asset_from_form` maps specific fields to `attributes` JSON.
+
+2. **Database Changes:**
+
+- If modifying `models.py`, you MUST run a migration or Wipe/Reset the DB.
+- **Never** enable WAL mode in `app.py` while using Docker on Windows (causes Disk I/O errors).
+
+3. **UI Changes:**
+
+- Modify `src/static/css/style.css`.
+- Always test mobile view (resize browser) to ensure the Drawer works.
 
 ---
 
-_Last Updated: Phase 3 Complete (Asset Management & Visuals)._
+_Last Updated: Phase 4 Complete (Refined Asset Architecture & Mobile Layout)._
