@@ -37,12 +37,17 @@ open-estate-dashboard/
 │   ├── seed.py             # Personalized data seed
 │   └── seed_example.py     # Generic demo data seed
 └── src/
-    ├── models.py           # DB Schema (Person, Asset, Appraisal, Milestone)
-    ├── forms.py            # Polymorphic WTForms (RealEstateForm, VehicleForm, etc.)
+    ├── models.py           # DB Schema (Person, Asset, Appraisal, Milestone, +Phase 5 models)
+    ├── forms.py            # Polymorphic WTForms
     ├── services/           # Logic Layer (Export, Import)
     ├── routes/             # Web Handlers (Main, Manage, Settings)
-    └── templates/          # HTML (Asset Details, Ledger, Dashboard)
-
+    └── templates/          # HTML Templates
+        ├── dashboard.html
+        ├── assets.html
+        ├── asset_details.html  # Tabbed Interface
+        ├── manage_asset.html
+        ├── manage_subitem.html # Generic form for Pins/Bills/Structures
+        └── ...
 
 ```
 
@@ -54,24 +59,29 @@ open-estate-dashboard/
 - Secure Docker container (non-root user).
 - `ops.ps1` for one-click maintenance (Wipe DB, Load Seed Data).
 - Live code synchronization via Docker volumes.
+
 - **Asset Management:**
 - **Type-First Creation:** User selects category (Real Estate, Vehicle, etc.) before data entry.
-- **Polymorphic Forms:** Specific fields for specific types (e.g., VIN for cars, APN for houses).
-- **Dynamic Attributes:** Extra fields stored as JSON (`attributes` column).
-- **Consolidated Ledger:** Unified "Assets & Liabilities" view with Card layout.
-- **Valuation History:** `Appraisal` table tracks value over time.
-- **Visualization:** Interactive Line Chart for asset value history.
+- **Polymorphic Forms:** Specific fields for specific types.
+- **Consolidated Ledger:** Unified view with Card layout.
+- **Visual Polish:** Cards sorted by Value (High->Low) with Watermark background icons.
+
+- **Real Estate Expansion (Phase 5):**
+- **Tabbed Interface:** Organized into Overview, Accommodations, Systems, Financials, Team.
+- **Coordinate Ledger:** GPS Pin Dropper ("Where is the Septic Tank?") using native HTML5 Geolocation.
+- **Sub-Items:** Track Structures (Sheds/Pools), Recurring Bills (Taxes/Insurance), and specific Vendor assignments (Gardener/Pool Guy).
+
 - **UI/UX:**
-- **Hybrid Layout:** Sidebar uses Flexbox on Desktop (no overlap) and Slide-out Drawer on Mobile.
+- **Hybrid Layout:** Sidebar uses Flexbox on Desktop and Slide-out Drawer on Mobile.
 - **Mobile Optimizations:** Touch-friendly targets, hamburger/arrow toggle.
-- **Navigation:** Back buttons and active state tracking.
+
 - **Durability:**
 - **Backup:** JSON export + human-readable HTML summary.
 - **Restore:** JSON ingestion (full overwrite).
 
 ### ⏳ Roadmap / Pending
 
-1. **Document Storage:**
+1. **Document Storage (Phase 6):**
 
 - [ ] Upload PDFs/Images for specific assets (stored in `instance/uploads`).
 - [ ] "Gallery" view for asset receipts/titles.
@@ -79,26 +89,27 @@ open-estate-dashboard/
 2. **Logic Engine:**
 
 - [ ] Automated Health Checks (e.g., "Warn if Asset has no Beneficiary").
-- [ ] Auto-generate Tasks based on data.
+- [ ] Auto-generate Tasks based on data (e.g., "Pay Property Tax" based on Bill due date).
 
 3. **Transition Protocol:**
 
 - [ ] "In Case of Emergency" view for Trustees (unlocked via specific protocol).
 
-4. **Household Bills & Unified Timeline:**
+4. **Unified Timeline:**
 
-- [ ] **Bills Module:** Associate recurring bills (Utilities, Insurance, Tax) specifically with Real Estate assets.
-- [ ] **Unified Timeline:** Upgrade the "Planning" view to aggregate Dates from Milestones, Tasks, Bill Due Dates, and Appraisal Histories into a single "Master Timeline".
+- [ ] Upgrade "Planning" view to aggregate Dates from Milestones, Tasks, Bill Due Dates, and Appraisal Histories.
 
 ## 5. Database Schema Key Points
 
 - **Asset:**
-- `asset_type`: String (RealEstate, Vehicle, Liability, etc.).
-- `value_estimated`: Float (Positive for Assets, Negative for Liabilities).
-- `attributes`: JSON (Stores VIN, Address, Account #).
-- `appraisals`: Relationship to `Appraisal` table (History).
-- **Appraisal:**
-- `date`, `value`, `source` (Zillow, Official, etc.).
+- `asset_type`, `value_estimated`, `attributes` (JSON).
+- **Relationships:** `appraisals`, `structures`, `location_points`, `bills`, `vendors`.
+
+- **Phase 5 Extensions:**
+- `PropertyStructure`: Sheds, Decks, Pools (`date_last_maintained`).
+- `LocationPoint`: Latitude/Longitude pins (`label`, `description`).
+- `RecurringBill`: Holding costs (`payee`, `amount`, `frequency`).
+- `AssetVendor`: Links `Person` to `Asset` with a Role (`Pool Cleaner`).
 
 ## 6. Operational Commands (Cheatsheet)
 
@@ -110,7 +121,6 @@ open-estate-dashboard/
 # 1. Update (Rebuild container)
 # 5. Wipe DB (Resets DB & Restarts Server)
 # 6. Seed (Loads data from scripts/)
-
 
 ```
 
@@ -127,23 +137,18 @@ flask db init
 flask db migrate -m "init"
 flask db upgrade
 
-# Run Seed
-python scripts/seed.py
-
-
 ```
 
 ## 7. Development Guidelines
 
 1. **Modifying Assets:**
 
-- Add new types in `src/forms.py` (Form Class) AND `src/routes/manage.py` (`ASSET_TYPES_META`).
-- Ensure `save_asset_from_form` maps specific fields to `attributes` JSON.
+- Add new types in `src/forms.py` AND `src/routes/manage.py` (`ASSET_TYPES_META` + `ASSET_ICONS`).
 
 2. **Database Changes:**
 
 - If modifying `models.py`, you MUST run a migration or Wipe/Reset the DB.
-- **Never** enable WAL mode in `app.py` while using Docker on Windows (causes Disk I/O errors).
+- **Never** enable WAL mode in `app.py` while using Docker on Windows.
 
 3. **UI Changes:**
 
@@ -152,8 +157,4 @@ python scripts/seed.py
 
 ---
 
-_Last Updated: Phase 4 Complete (Roadmap Updated with Bills & Unified Timeline)._
-
-```
-
-```
+_Last Updated: Phase 5 Complete (Real Estate Expansion)._
