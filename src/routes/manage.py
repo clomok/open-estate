@@ -1,4 +1,5 @@
 import json
+from datetime import date, datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from src.extensions import db
 from src.models import Asset, Person, Appraisal
@@ -22,7 +23,6 @@ ASSET_TYPES_META = [
 @bp.route('/asset/select-type')
 @login_required
 def select_type():
-    # Added active_page
     return render_template('select_type.html', asset_types=ASSET_TYPES_META, active_page='assets')
 
 @bp.route('/asset/new/<type_code>', methods=['GET', 'POST'])
@@ -41,11 +41,60 @@ def create_asset_step2(type_code):
         
         db.session.add(asset)
         db.session.commit()
+        
+        # --- Smart Appraisal Creation Logic ---
+        
+        # 1. Handle Historical Purchase Data (if provided in form)
+        if hasattr(form, 'purchase_date') and form.purchase_date.data:
+            try:
+                # Forms use string 'YYYY-MM-DD', Model needs Python Date object
+                p_date = datetime.strptime(form.purchase_date.data, '%Y-%m-%d').date()
+                
+                # Get price if available, else 0
+                p_price_field = getattr(form, 'purchase_price', None)
+                p_val = p_price_field.data if (p_price_field and p_price_field.data) else 0.0
+                
+                purchase_appraisal = Appraisal(
+                    asset_id=asset.id,
+                    date=p_date,
+                    value=p_val,
+                    source="Purchase",
+                    notes="Original Purchase Price"
+                )
+                db.session.add(purchase_appraisal)
+            except ValueError:
+                pass # Ignore if date string is malformed
+
+        # 2. Handle Current Estimated Value
+        # Always add a 'Current' entry if value is non-zero. 
+        if asset.value_estimated != 0:
+            # Avoid duplicate if purchase date is today
+            skip = False
+            if hasattr(form, 'purchase_date') and form.purchase_date.data:
+                 if form.purchase_date.data == date.today().isoformat() and \
+                    getattr(form, 'purchase_price', None) and \
+                    getattr(form, 'purchase_price').data == asset.value_estimated:
+                     skip = True
+
+            if not skip:
+                current_appraisal = Appraisal(
+                    asset_id=asset.id,
+                    date=date.today(),
+                    value=asset.value_estimated,
+                    source="Initial Entry",
+                    notes="Current value at time of recording"
+                )
+                db.session.add(current_appraisal)
+
+        db.session.commit()
         flash(f'Created {asset.name}', 'success')
         return redirect(url_for('main.assets_view'))
+    
+    # --- ADDED ERROR FLASHING ---
+    elif request.method == 'POST':
+        flash('There were errors in your form submission. Please check below.', 'error')
 
     form.asset_type.data = type_code
-    # Added active_page
     return render_template('manage_asset.html', form=form, title=f"Add {type_code}", type_code=type_code, active_page='assets')
 
 @bp.route('/asset/edit/<int:id>', methods=['GET', 'POST'])
@@ -74,8 +123,11 @@ def manage_asset(id):
         db.session.commit()
         flash(f'Updated {asset.name}', 'success')
         return redirect(url_for('main.asset_details', id=asset.id))
+    
+    # --- ADDED ERROR FLASHING ---
+    elif request.method == 'POST':
+        flash('Update failed. Please correct the errors below.', 'error')
 
-    # Added active_page
     return render_template('manage_asset.html', form=form, title=f"Edit {asset.asset_type}", type_code=asset.asset_type, active_page='assets')
 
 @bp.route('/asset/delete/<int:id>')
@@ -107,8 +159,7 @@ def add_appraisal(id):
         )
         db.session.add(appraisal)
         
-        # Simple logic: If we add a new appraisal, we assume it's the current value
-        # if the date is recent. For simplicity in V1, we overwrite.
+        # Update current value if the new appraisal date is recent/latest
         if form.date.data:
             asset.value_estimated = form.value.data
             
@@ -127,19 +178,24 @@ def edit_appraisal(id):
     appraisal = Appraisal.query.get_or_404(id)
     form = AppraisalForm()
     
-    # We validate strictly, but the form data comes from the modal
     if form.validate_on_submit():
         appraisal.date = form.date.data
         appraisal.value = form.value.data
         appraisal.source = form.source.data
         appraisal.notes = form.notes.data
         
-        # Check if this is the most recent appraisal for the asset.
-        # If so, update the main Asset value to match.
+        # 1. Update Asset Value if this is the latest appraisal
         latest = Appraisal.query.filter_by(asset_id=appraisal.asset_id).order_by(Appraisal.date.desc()).first()
         if latest and appraisal.id == latest.id:
              appraisal.asset.value_estimated = form.value.data
-             
+        
+        # 2. SYNC: Update "Purchase" attributes if this record is the Purchase record
+        if appraisal.source == "Purchase":
+            attrs = dict(appraisal.asset.attributes or {})
+            attrs['purchase_date'] = appraisal.date.isoformat()
+            attrs['purchase_price'] = appraisal.value
+            appraisal.asset.attributes = attrs
+
         try:
             db.session.commit()
             flash('Valuation updated successfully.', 'success')
@@ -156,9 +212,19 @@ def edit_appraisal(id):
 def delete_appraisal(id):
     appraisal = Appraisal.query.get_or_404(id)
     asset_id = appraisal.asset_id
+    is_purchase = (appraisal.source == "Purchase")
     
     try:
         db.session.delete(appraisal)
+        
+        # If we deleted the purchase record, clear the attributes on the asset
+        if is_purchase:
+            asset = Asset.query.get(asset_id)
+            attrs = dict(asset.attributes or {})
+            attrs.pop('purchase_date', None)
+            attrs.pop('purchase_price', None)
+            asset.attributes = attrs
+
         db.session.commit()
         
         # Re-calculate the asset's current value based on the remaining latest appraisal
@@ -166,7 +232,6 @@ def delete_appraisal(id):
         asset = Asset.query.get(asset_id)
         if latest:
             asset.value_estimated = latest.value
-        # If no appraisals exist, we leave the value as is (or could set to 0)
         
         db.session.commit()
         flash('Valuation deleted.', 'success')

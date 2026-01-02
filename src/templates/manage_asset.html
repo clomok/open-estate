@@ -4,9 +4,24 @@
 <div style="max-width: 700px; margin: 0 auto;">
     <h1 style="margin-bottom: 2rem;">{{ title }}</h1>
 
+    {% if form.errors %}
+    <div style="background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
+        <h4 style="margin-top: 0; margin-bottom: 0.5rem;">Please correct the following errors:</h4>
+        <ul style="margin-bottom: 0; padding-left: 1.5rem;">
+            {% for field_name, errors in form.errors.items() %}
+                {% for error in errors %}
+                <li><strong>{{ field_name }}:</strong> {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     <div class="summary-card">
         <form method="POST">
             {{ form.hidden_tag() }}
+            
+            <input type="hidden" name="asset_type" value="{{ type_code }}">
 
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Name / Title</label>
