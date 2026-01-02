@@ -2,8 +2,11 @@ import json
 from datetime import date, datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from src.extensions import db
-from src.models import Asset, Person, Appraisal
-from src.forms import get_form_class, AppraisalForm, PersonForm
+from src.models import Asset, Person, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor
+from src.forms import (
+    get_form_class, AppraisalForm, PersonForm, 
+    StructureForm, LocationPointForm, RecurringBillForm, AssetVendorForm
+)
 from src.services.auth_service import login_required
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
@@ -20,7 +23,7 @@ ASSET_TYPES_META = [
     ('Other', 'Other Asset', '📦')
 ]
 
-# ... [EXISTING ASSET ROUTES REMAIN UNCHANGED] ...
+# --- ASSET MANAGEMENT ---
 
 @bp.route('/asset/select-type')
 @login_required
@@ -135,6 +138,8 @@ def delete_asset(id):
         flash('Error deleting asset.', 'error')
     return redirect(url_for('main.assets_view'))
 
+# --- APPRAISALS ---
+
 @bp.route('/asset/<int:id>/appraise', methods=['POST'])
 @login_required
 def add_appraisal(id):
@@ -213,14 +218,12 @@ def delete_appraisal(id):
         flash(f'Error deleting valuation: {str(e)}', 'error')
     return redirect(url_for('main.asset_details', id=asset_id))
 
-# --- NEW: CONTACT MANAGEMENT ROUTES ---
+# --- CONTACTS ---
 
 @bp.route('/contact/new', methods=['GET', 'POST'])
 @login_required
 def create_person():
     form = PersonForm()
-    
-    # Pre-select role if passed in query string (for the "Pre-made" sections)
     if request.method == 'GET' and request.args.get('role'):
         form.role.data = request.args.get('role')
 
@@ -230,8 +233,6 @@ def create_person():
         person.role = form.role.data
         person.email = form.email.data
         person.phone = form.phone.data
-        
-        # Store extra fields in attributes
         attrs = {}
         if form.address.data: attrs['address'] = form.address.data
         if form.notes.data: attrs['notes'] = form.notes.data
@@ -293,6 +294,78 @@ def delete_person(id):
         flash('Error deleting contact. Check if they are linked to assets.', 'error')
     return redirect(url_for('main.details_view'))
 
+# --- PHASE 5: SUB-ITEMS (Structures, Pins, Bills, Vendors) ---
+
+@bp.route('/asset/<int:id>/<string:subitem_type>/new', methods=['GET', 'POST'])
+@login_required
+def manage_subitem(id, subitem_type):
+    asset = Asset.query.get_or_404(id)
+    
+    # Logic Dispatcher
+    config = {
+        'structure': {
+            'form': StructureForm, 'model': PropertyStructure, 'title': 'Add Structure / Accommodation', 'is_vendor': False
+        },
+        'location': {
+            'form': LocationPointForm, 'model': LocationPoint, 'title': 'Drop Location Pin', 'is_vendor': False
+        },
+        'bill': {
+            'form': RecurringBillForm, 'model': RecurringBill, 'title': 'Add Recurring Bill', 'is_vendor': False
+        },
+        'vendor': {
+            'form': AssetVendorForm, 'model': AssetVendor, 'title': 'Assign Vendor', 'is_vendor': True
+        }
+    }
+    
+    if subitem_type not in config:
+        flash('Unknown item type.', 'error')
+        return redirect(url_for('main.asset_details', id=id))
+        
+    cfg = config[subitem_type]
+    form = cfg['form']()
+    
+    # Special Handling for Vendors (Populate SelectField)
+    if cfg['is_vendor']:
+        people = Person.query.order_by(Person.name).all()
+        form.person_id.choices = [(p.id, f"{p.name} ({p.role})") for p in people]
+
+    if form.validate_on_submit():
+        item = cfg['model']()
+        item.asset_id = asset.id
+        form.populate_obj(item) # Auto-map form fields to model
+        
+        db.session.add(item)
+        try:
+            db.session.commit()
+            flash(f'{cfg["title"]} saved successfully.', 'success')
+            return redirect(url_for('main.asset_details', id=id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error saving item: {str(e)}', 'error')
+            
+    return render_template('manage_subitem.html', form=form, title=cfg['title'], asset=asset, subitem_type=subitem_type, active_page='assets')
+
+@bp.route('/asset/<int:asset_id>/<string:subitem_type>/<int:item_id>/delete')
+@login_required
+def delete_subitem(asset_id, subitem_type, item_id):
+    # Mapping
+    models = {
+        'structure': PropertyStructure,
+        'location': LocationPoint,
+        'bill': RecurringBill,
+        'vendor': AssetVendor
+    }
+    
+    if subitem_type in models:
+        item = models[subitem_type].query.get_or_404(item_id)
+        if item.asset_id == asset_id:
+            db.session.delete(item)
+            db.session.commit()
+            flash('Item removed.', 'success')
+    
+    return redirect(url_for('main.asset_details', id=asset_id))
+
+# --- HELPER ---
 def save_asset_from_form(asset, form):
     asset.name = form.name.data
     asset.is_in_trust = form.is_in_trust.data

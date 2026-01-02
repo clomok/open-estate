@@ -12,7 +12,7 @@ ASSET_TYPES = [
     ('Liability', 'Debt/Loan')
 ]
 
-# --- Base Asset Forms (Previous code remains here) ---
+# --- Base Asset Forms ---
 class BaseAssetForm(FlaskForm):
     name = StringField('Name / Title', validators=[DataRequired(), Length(max=150)])
     asset_type = StringField('Asset Type', validators=[DataRequired()]) 
@@ -99,7 +99,7 @@ class AppraisalForm(FlaskForm):
     notes = TextAreaField('Notes')
     submit = SubmitField('Add Valuation')
 
-# --- NEW: Person/Contact Form ---
+# --- Person/Contact Form ---
 class PersonForm(FlaskForm):
     name = StringField('Name / Organization', validators=[DataRequired(), Length(max=100)])
     role = SelectField('Role / Relationship', choices=[
@@ -121,3 +121,35 @@ class PersonForm(FlaskForm):
     address = TextAreaField('Physical Address', validators=[Optional()])
     notes = TextAreaField('Notes / Instructions', validators=[Optional()])
     submit = SubmitField('Save Contact')
+
+# --- PHASE 5: REAL ESTATE EXPANSION FORMS ---
+
+class StructureForm(FlaskForm):
+    name = StringField('Structure Name', validators=[DataRequired()], render_kw={"placeholder": "e.g. North Garden Shed"})
+    structure_type = StringField('Type', render_kw={"placeholder": "e.g. Outbuilding, Deck, Pool"})
+    description = TextAreaField('Description')
+    date_last_maintained = DateField('Last Maintained', validators=[Optional()])
+    notes = TextAreaField('Maintenance Notes')
+    submit = SubmitField('Save Structure')
+
+class LocationPointForm(FlaskForm):
+    label = StringField('Label', validators=[DataRequired()], render_kw={"placeholder": "e.g. Septic Tank Lid"})
+    description = TextAreaField('Description', render_kw={"placeholder": "e.g. Buried 6 inches deep..."})
+    latitude = FloatField('Latitude', validators=[DataRequired()])
+    longitude = FloatField('Longitude', validators=[DataRequired()])
+    submit = SubmitField('Save Pin')
+
+class RecurringBillForm(FlaskForm):
+    name = StringField('Bill Name', validators=[DataRequired()], render_kw={"placeholder": "e.g. Property Tax"})
+    payee = StringField('Payee', render_kw={"placeholder": "e.g. County Treasurer"})
+    amount_estimated = FloatField('Est. Amount ($)', validators=[Optional()])
+    frequency = SelectField('Frequency', choices=[('Monthly', 'Monthly'), ('Annual', 'Annual'), ('Quarterly', 'Quarterly')])
+    is_autopay = BooleanField('Autopay Enabled?')
+    next_due_date = DateField('Next Due Date', validators=[Optional()])
+    submit = SubmitField('Save Bill')
+
+class AssetVendorForm(FlaskForm):
+    person_id = SelectField('Select Contact', coerce=int, validators=[DataRequired()])
+    role = StringField('Service Role', validators=[DataRequired()], render_kw={"placeholder": "e.g. Pool Cleaner, Gardener"})
+    notes = TextAreaField('Notes', render_kw={"placeholder": "Account #, Gate Code for them..."})
+    submit = SubmitField('Assign Vendor')
