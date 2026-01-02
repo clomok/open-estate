@@ -3,7 +3,7 @@ from datetime import date, datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from src.extensions import db
 from src.models import Asset, Person, Appraisal
-from src.forms import get_form_class, AppraisalForm
+from src.forms import get_form_class, AppraisalForm, PersonForm
 from src.services.auth_service import login_required
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
@@ -19,6 +19,8 @@ ASSET_TYPES_META = [
     ('Utility', 'Utility Account', '💡'),
     ('Other', 'Other Asset', '📦')
 ]
+
+# ... [EXISTING ASSET ROUTES REMAIN UNCHANGED] ...
 
 @bp.route('/asset/select-type')
 @login_required
@@ -42,15 +44,10 @@ def create_asset_step2(type_code):
         db.session.add(asset)
         db.session.commit()
         
-        # --- Smart Appraisal Creation Logic ---
-        
-        # 1. Handle Historical Purchase Data (if provided in form)
+        # Smart Appraisal Creation Logic
         if hasattr(form, 'purchase_date') and form.purchase_date.data:
             try:
-                # Forms use string 'YYYY-MM-DD', Model needs Python Date object
                 p_date = datetime.strptime(form.purchase_date.data, '%Y-%m-%d').date()
-                
-                # Get price if available, else 0
                 p_price_field = getattr(form, 'purchase_price', None)
                 p_val = p_price_field.data if (p_price_field and p_price_field.data) else 0.0
                 
@@ -63,12 +60,9 @@ def create_asset_step2(type_code):
                 )
                 db.session.add(purchase_appraisal)
             except ValueError:
-                pass # Ignore if date string is malformed
+                pass
 
-        # 2. Handle Current Estimated Value
-        # Always add a 'Current' entry if value is non-zero. 
         if asset.value_estimated != 0:
-            # Avoid duplicate if purchase date is today
             skip = False
             if hasattr(form, 'purchase_date') and form.purchase_date.data:
                  if form.purchase_date.data == date.today().isoformat() and \
@@ -90,7 +84,6 @@ def create_asset_step2(type_code):
         flash(f'Created {asset.name}', 'success')
         return redirect(url_for('main.assets_view'))
     
-    # --- ADDED ERROR FLASHING ---
     elif request.method == 'POST':
         flash('There were errors in your form submission. Please check below.', 'error')
 
@@ -124,7 +117,6 @@ def manage_asset(id):
         flash(f'Updated {asset.name}', 'success')
         return redirect(url_for('main.asset_details', id=asset.id))
     
-    # --- ADDED ERROR FLASHING ---
     elif request.method == 'POST':
         flash('Update failed. Please correct the errors below.', 'error')
 
@@ -148,7 +140,6 @@ def delete_asset(id):
 def add_appraisal(id):
     asset = Asset.query.get_or_404(id)
     form = AppraisalForm()
-    
     if form.validate_on_submit():
         appraisal = Appraisal(
             asset_id=asset.id,
@@ -158,18 +149,14 @@ def add_appraisal(id):
             notes=form.notes.data
         )
         db.session.add(appraisal)
-        
-        # Update current value if the new appraisal date is recent/latest
         if form.date.data:
             asset.value_estimated = form.value.data
-            
         try:
             db.session.commit()
             flash('Valuation added and asset updated.', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'error')
-            
     return redirect(url_for('main.asset_details', id=id))
 
 @bp.route('/appraisal/<int:id>/edit', methods=['POST'])
@@ -177,25 +164,19 @@ def add_appraisal(id):
 def edit_appraisal(id):
     appraisal = Appraisal.query.get_or_404(id)
     form = AppraisalForm()
-    
     if form.validate_on_submit():
         appraisal.date = form.date.data
         appraisal.value = form.value.data
         appraisal.source = form.source.data
         appraisal.notes = form.notes.data
-        
-        # 1. Update Asset Value if this is the latest appraisal
         latest = Appraisal.query.filter_by(asset_id=appraisal.asset_id).order_by(Appraisal.date.desc()).first()
         if latest and appraisal.id == latest.id:
              appraisal.asset.value_estimated = form.value.data
-        
-        # 2. SYNC: Update "Purchase" attributes if this record is the Purchase record
         if appraisal.source == "Purchase":
             attrs = dict(appraisal.asset.attributes or {})
             attrs['purchase_date'] = appraisal.date.isoformat()
             attrs['purchase_price'] = appraisal.value
             appraisal.asset.attributes = attrs
-
         try:
             db.session.commit()
             flash('Valuation updated successfully.', 'success')
@@ -204,7 +185,6 @@ def edit_appraisal(id):
             flash(f'Error updating valuation: {str(e)}', 'error')
     else:
         flash('Invalid data submitted for valuation update.', 'error')
-        
     return redirect(url_for('main.asset_details', id=appraisal.asset_id))
 
 @bp.route('/appraisal/<int:id>/delete', methods=['POST'])
@@ -213,33 +193,105 @@ def delete_appraisal(id):
     appraisal = Appraisal.query.get_or_404(id)
     asset_id = appraisal.asset_id
     is_purchase = (appraisal.source == "Purchase")
-    
     try:
         db.session.delete(appraisal)
-        
-        # If we deleted the purchase record, clear the attributes on the asset
         if is_purchase:
             asset = Asset.query.get(asset_id)
             attrs = dict(asset.attributes or {})
             attrs.pop('purchase_date', None)
             attrs.pop('purchase_price', None)
             asset.attributes = attrs
-
         db.session.commit()
-        
-        # Re-calculate the asset's current value based on the remaining latest appraisal
         latest = Appraisal.query.filter_by(asset_id=asset_id).order_by(Appraisal.date.desc()).first()
         asset = Asset.query.get(asset_id)
         if latest:
             asset.value_estimated = latest.value
-        
         db.session.commit()
         flash('Valuation deleted.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting valuation: {str(e)}', 'error')
-        
     return redirect(url_for('main.asset_details', id=asset_id))
+
+# --- NEW: CONTACT MANAGEMENT ROUTES ---
+
+@bp.route('/contact/new', methods=['GET', 'POST'])
+@login_required
+def create_person():
+    form = PersonForm()
+    
+    # Pre-select role if passed in query string (for the "Pre-made" sections)
+    if request.method == 'GET' and request.args.get('role'):
+        form.role.data = request.args.get('role')
+
+    if form.validate_on_submit():
+        person = Person()
+        person.name = form.name.data
+        person.role = form.role.data
+        person.email = form.email.data
+        person.phone = form.phone.data
+        
+        # Store extra fields in attributes
+        attrs = {}
+        if form.address.data: attrs['address'] = form.address.data
+        if form.notes.data: attrs['notes'] = form.notes.data
+        person.attributes = attrs
+        
+        db.session.add(person)
+        try:
+            db.session.commit()
+            flash(f'Contact {person.name} added successfully.', 'success')
+            return redirect(url_for('main.details_view'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating contact: {str(e)}', 'error')
+
+    return render_template('manage_person.html', form=form, title="Add Contact", active_page='details')
+
+@bp.route('/contact/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_person(id):
+    person = Person.query.get_or_404(id)
+    form = PersonForm(obj=person)
+
+    if request.method == 'GET':
+        if person.attributes:
+            form.address.data = person.attributes.get('address', '')
+            form.notes.data = person.attributes.get('notes', '')
+
+    if form.validate_on_submit():
+        person.name = form.name.data
+        person.role = form.role.data
+        person.email = form.email.data
+        person.phone = form.phone.data
+        
+        attrs = {}
+        if form.address.data: attrs['address'] = form.address.data
+        if form.notes.data: attrs['notes'] = form.notes.data
+        person.attributes = attrs
+
+        try:
+            db.session.commit()
+            flash(f'Updated contact {person.name}.', 'success')
+            return redirect(url_for('main.details_view'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating contact: {str(e)}', 'error')
+
+    return render_template('manage_person.html', form=form, title="Edit Contact", active_page='details')
+
+@bp.route('/contact/delete/<int:id>')
+@login_required
+def delete_person(id):
+    person = Person.query.get_or_404(id)
+    try:
+        db.session.delete(person)
+        db.session.commit()
+        flash(f'Deleted contact {person.name}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting contact. Check if they are linked to assets.', 'error')
+    return redirect(url_for('main.details_view'))
 
 def save_asset_from_form(asset, form):
     asset.name = form.name.data

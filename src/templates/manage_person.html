@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="margin-bottom: 2rem;">{{ title }}</h1>
+
+    <div class="summary-card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.name.label }}</label>
+                {{ form.name(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="Full Name or Company Name") }}
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.role.label }}</label>
+                {{ form.role(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+            </div>
+
+            <div class="grid-2-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.email.label }}</label>
+                    {{ form.email(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                </div>
+                <div>
+                    <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.phone.label }}</label>
+                    {{ form.phone(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.address.label }}</label>
+                {{ form.address(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", rows=3) }}
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.notes.label }}</label>
+                {{ form.notes(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", rows=3, placeholder="Account numbers, specific instructions, or POC names...") }}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                <a href="{{ url_for('main.details_view') }}" style="color: #666; text-decoration: none;">Cancel</a>
+                {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

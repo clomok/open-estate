@@ -17,57 +17,42 @@ def dashboard():
     trust_count = sum(1 for a in all_assets if a.is_in_trust)
     
     # --- CHART DATA PREPARATION ---
-    # 1. Collect all unique dates from all appraisals
     all_dates = set()
     for asset in all_assets:
         for app in asset.appraisals:
             all_dates.add(app.date)
     
-    # Ensure the timeline extends to today
     all_dates.add(date.today())
     sorted_dates = sorted(list(all_dates))
     
-    # 2. Build Datasets (One per asset)
     datasets = []
     
-    # DISTINCT PALETTES
-    # Cool colors for Assets (Greens, Blues, Purples, Teals)
     asset_colors = [
         '#16a34a', '#2563eb', '#9333ea', '#0891b2', '#0d9488', 
         '#4f46e5', '#059669', '#7c3aed', '#0284c7', '#65a30d'
     ]
     
-    # Warm colors for Liabilities (Reds, Oranges, Pinks)
     liability_colors = [
         '#dc2626', '#ea580c', '#db2777', '#b91c1c', '#c2410c',
         '#be123c', '#991b1b', '#9a3412', '#831843', '#7f1d1d'
     ]
     
-    # Counters to rotate through palettes
     a_idx = 0
     l_idx = 0
     
     for asset in all_assets:
         apps = sorted(asset.appraisals, key=lambda x: x.date)
         app_map = {a.date: a.value for a in apps}
-        
-        # Determine when this asset "started" (first appraisal date)
         start_date = apps[0].date if apps else date.max
-        
         data_points = []
         current_val = 0.0
-        
         for d in sorted_dates:
             if d in app_map:
                 current_val = app_map[d]
             elif d < start_date:
-                # If date is before the asset existed/was recorded, value is 0
                 current_val = 0.0
-            # else: keep current_val (Forward Fill logic)
-            
             data_points.append(current_val)
         
-        # Determine Color based on type (Positive vs Negative)
         if asset.value_estimated < 0:
             color = liability_colors[l_idx % len(liability_colors)]
             l_idx += 1
@@ -100,10 +85,7 @@ def dashboard():
 @bp.route('/assets')
 @login_required
 def assets_view():
-    # Fetch all items sorted by name
     all_items = Asset.query.order_by(Asset.name).all()
-    
-    # Split them for display
     assets_list = [a for a in all_items if a.value_estimated >= 0]
     liabilities_list = [a for a in all_items if a.value_estimated < 0]
     
@@ -140,11 +122,41 @@ def planning_view():
     timeline = Milestone.query.order_by(Milestone.id).all()
     return render_template('planning.html', timeline=timeline, active_page='planning')
 
+# --- UPDATED DETAILS VIEW FOR CONTACTS ---
 @bp.route('/details')
 @login_required
 def details_view():
-    people = Person.query.all()
-    return render_template('details.html', people=people, active_page='details')
+    all_people = Person.query.order_by(Person.name).all()
+    
+    # Define Roles
+    family_roles = ['Trustor', 'Trustee', 'Beneficiary', 'Executor']
+    family = [p for p in all_people if p.role in family_roles]
+    
+    # Define Professional Roles Metadata (Role Code, Display Name, Icon)
+    pro_roles_meta = [
+        ('Attorney', 'Estate Attorney'),
+        ('Financial Advisor', 'Financial Advisor'),
+        ('Accountant', 'CPA / Accountant'),
+        ('Funeral Director', 'Funeral Service'),
+        ('Insurance', 'Insurance Agent'),
+        ('Medical', 'Primary Doctor')
+    ]
+    
+    # Filter Existing Pros
+    pros = [p for p in all_people if p.role not in family_roles]
+    existing_roles = {p.role for p in pros}
+    
+    # Identify Missing Slots
+    missing_pros = []
+    for role_code, label in pro_roles_meta:
+        if role_code not in existing_roles:
+            missing_pros.append({'role': role_code, 'label': label})
+            
+    return render_template('details.html', 
+                           family=family, 
+                           pros=pros, 
+                           missing_pros=missing_pros,
+                           active_page='details')
 
 @bp.route('/faq')
 @login_required

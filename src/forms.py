@@ -91,10 +91,33 @@ def get_form_class(type_code):
     }
     return mapping.get(type_code, BaseAssetForm)
 
-# --- NEW: Appraisal Form ---
+# --- Appraisal Form ---
 class AppraisalForm(FlaskForm):
     date = DateField('Date of Valuation', default=date.today, validators=[DataRequired()])
     value = FloatField('New Value ($)', validators=[DataRequired()])
     source = StringField('Source (e.g. Zillow, KBB, Statement)', validators=[Length(max=100)])
     notes = TextAreaField('Notes')
     submit = SubmitField('Add Valuation')
+
+# --- NEW: Person/Contact Form ---
+class PersonForm(FlaskForm):
+    name = StringField('Name / Organization', validators=[DataRequired(), Length(max=100)])
+    role = SelectField('Role / Relationship', choices=[
+        ('Trustor', 'Trustor (Grantor)'),
+        ('Trustee', 'Trustee'),
+        ('Beneficiary', 'Beneficiary'),
+        ('Executor', 'Executor'),
+        ('Attorney', 'Attorney'),
+        ('Financial Advisor', 'Financial Advisor'),
+        ('Accountant', 'Accountant / CPA'),
+        ('Funeral Director', 'Funeral Service'),
+        ('Medical', 'Doctor / Medical POC'),
+        ('Insurance', 'Insurance Agent'),
+        ('Other', 'Other')
+    ], validators=[DataRequired()])
+    
+    email = StringField('Email', validators=[Optional(), Length(max=120)])
+    phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    address = TextAreaField('Physical Address', validators=[Optional()])
+    notes = TextAreaField('Notes / Instructions', validators=[Optional()])
+    submit = SubmitField('Save Contact')

@@ -39,7 +39,7 @@ This project was born out of a need for a simple, resilient system to organize f
 
     ```bash
     git clone https://github.com/clomok/open-estate.git
-    cd open-estate-dashboard
+    cd open-estate
     ```
 
 2.  **Configure Environment:**

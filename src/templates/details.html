@@ -1,36 +1,129 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1 style="margin-bottom: 2rem;">Family & Beneficiaries</h1>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <h1>Details & Contacts</h1>
+    <a href="{{ url_for('manage.create_person') }}" 
+       style="background: var(--primary); color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; display: inline-block;">
+        + Add Custom Contact
+    </a>
+</div>
+
+<h2 style="margin-bottom: 1rem; font-size: 1.25rem; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">
+    Trust & Family
+</h2>
 
 <div class="grid-3">
-    {% for person in people %}
-    <div class="summary-card">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <h3 style="margin: 0;">{{ person.name }}</h3>
-            <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">
-                {{ person.role }}
-            </span>
+    {% for person in family %}
+    <div class="summary-card" style="position: relative;">
+        <div style="position: absolute; top: 1rem; right: 1rem;">
+            <a href="{{ url_for('manage.edit_person', id=person.id) }}" style="text-decoration: none; color: #9ca3af; margin-right: 0.5rem; font-size: 1.1rem;">✎</a>
+            <a href="{{ url_for('manage.delete_person', id=person.id) }}" 
+               onclick="return confirm('Delete this contact?');"
+               style="text-decoration: none; color: #f87171; font-size: 1.1rem;">&times;</a>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-right: 2rem;">
+            <h3 style="margin: 0; font-size: 1.25rem;">{{ person.name }}</h3>
         </div>
         
-        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+        <span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
+            {{ person.role }}
+        </span>
+        
+        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
             {% if person.email %}
-            <div style="margin-bottom: 0.5rem;">
-                <span class="summary-label">Email</span><br>
-                {{ person.email }}
+            <div style="margin-bottom: 0.5rem; display: flex; align-items: center;">
+                <span style="width: 20px; text-align: center; margin-right: 8px;">✉</span> 
+                <a href="mailto:{{ person.email }}" style="color: var(--primary);">{{ person.email }}</a>
+            </div>
+            {% endif %}
+
+            {% if person.phone %}
+            <div style="margin-bottom: 0.5rem; display: flex; align-items: center;">
+                <span style="width: 20px; text-align: center; margin-right: 8px;">📞</span> 
+                {{ person.phone }}
             </div>
             {% endif %}
             
-            {% if person.attributes %}
-                {% for key, value in person.attributes.items() %}
-                <div style="margin-bottom: 0.5rem;">
-                    <span class="summary-label">{{ key|title }}</span><br>
-                    {{ value }}
-                </div>
-                {% endfor %}
+            {% if person.attributes and person.attributes.get('address') %}
+            <div style="margin-bottom: 0.5rem; display: flex; align-items: flex-start;">
+                <span style="width: 20px; text-align: center; margin-right: 8px;">🏠</span> 
+                <span style="white-space: pre-wrap;">{{ person.attributes.address }}</span>
+            </div>
+            {% endif %}
+
+            {% if person.attributes and person.attributes.get('notes') %}
+            <div style="margin-top: 0.75rem; background: #f9fafb; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; color: #666; font-style: italic;">
+                "{{ person.attributes.notes }}"
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <p style="color: #666; font-style: italic;">No family members recorded.</p>
+    {% endfor %}
+</div>
+
+<h2 style="margin-top: 3rem; margin-bottom: 1rem; font-size: 1.25rem; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">
+    Professional Services
+</h2>
+
+<div class="grid-3">
+    {% for person in pros %}
+    <div class="summary-card" style="position: relative; border-left: 4px solid #059669;">
+        <div style="position: absolute; top: 1rem; right: 1rem;">
+            <a href="{{ url_for('manage.edit_person', id=person.id) }}" style="text-decoration: none; color: #9ca3af; margin-right: 0.5rem; font-size: 1.1rem;">✎</a>
+            <a href="{{ url_for('manage.delete_person', id=person.id) }}" 
+               onclick="return confirm('Delete this contact?');"
+               style="text-decoration: none; color: #f87171; font-size: 1.1rem;">&times;</a>
+        </div>
+
+        <h3 style="margin: 0; font-size: 1.25rem; margin-right: 2rem;">{{ person.name }}</h3>
+        <span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
+            {{ person.role }}
+        </span>
+
+        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.95rem;">
+            {% if person.email %}
+            <div style="margin-bottom: 0.5rem;">{{ person.email }}</div>
+            {% endif %}
+            {% if person.phone %}
+            <div style="margin-bottom: 0.5rem;">{{ person.phone }}</div>
+            {% endif %}
+            {% if person.attributes.address %}
+            <div style="white-space: pre-wrap; margin-bottom: 0.5rem;">{{ person.attributes.address }}</div>
             {% endif %}
         </div>
     </div>
     {% endfor %}
+
+    {% for slot in missing_pros %}
+    <a href="{{ url_for('manage.create_person', role=slot.role) }}" class="summary-card ghost-card">
+        <div style="font-size: 2rem; color: #cbd5e1; margin-bottom: 0.5rem;">+</div>
+        <div style="font-weight: bold; color: #64748b;">Add {{ slot.label }}</div>
+        <div style="font-size: 0.8rem; color: #94a3b8;">Click to fill contact</div>
+    </a>
+    {% endfor %}
 </div>
+
+<style>
+    .ghost-card {
+        border: 2px dashed #cbd5e1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        text-decoration: none;
+        transition: all 0.2s;
+        min-height: 200px;
+        background: #f8fafc;
+    }
+    .ghost-card:hover {
+        border-color: var(--primary);
+        background: #eff6ff;
+        transform: translateY(-2px);
+    }
+</style>
 {% endblock %}
