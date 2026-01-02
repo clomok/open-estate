@@ -95,6 +95,7 @@ class RecurringBill(db.Model):
     asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)     # e.g. "County Property Tax"
     payee = db.Column(db.String(100))                    # e.g. "San Diego Treasurer"
+    account_number = db.Column(db.String(100))           # NEW: Migrated from Utility
     amount_estimated = db.Column(db.Float, default=0.0)
     frequency = db.Column(db.String(50))                 # e.g. "Annual", "Monthly"
     is_autopay = db.Column(db.Boolean, default=False)

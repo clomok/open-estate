@@ -2,7 +2,7 @@ import json
 from datetime import date
 from flask import Blueprint, render_template
 from src.services.auth_service import login_required
-from src.models import Person, Asset, Milestone
+from src.models import Person, Asset, Milestone, Task, Appraisal
 from src.forms import AppraisalForm
 
 bp = Blueprint('main', __name__)
@@ -16,7 +16,6 @@ ASSET_ICONS = {
     'Jewelry': '💎',
     'Art': '🎨',
     'Liability': '💳',
-    'Utility': '💡',
     'Other': '📦'
 }
 

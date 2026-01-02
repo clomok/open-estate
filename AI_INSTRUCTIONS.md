@@ -16,7 +16,7 @@
 
 - **Language:** Python 3.11+
 - **Web Framework:** Flask 3.x
-- **Database:** SQLite (WAL Mode Disabled for Windows Docker compatibility).
+- **Database:** SQLite (WAL Mode **STRICTLY DISABLED** for Windows Docker compatibility).
 - **ORM:** SQLAlchemy 2.x + Flask-Migrate (Alembic).
 - **Frontend:** Jinja2 Templates + Vanilla CSS (No build steps).
 - **Charting:** Chart.js (via CDN).
@@ -31,13 +31,13 @@ open-estate-dashboard/
 ├── .gitattributes          # Enforces LF line endings (Critical for Docker/Windows)
 ├── .env                    # Secrets (Excluded from Git)
 ├── compose.yaml            # Docker orchestration (Mounts .:/app)
-├── app.py                  # Application Factory (WAL mode disabled)
+├── app.py                  # Application Factory (WAL mode explicitly disabled)
 ├── instance/               # Persistent DB storage (estate.db)
 ├── scripts/
 │   ├── seed.py             # Personalized data seed
 │   └── seed_example.py     # Generic demo data seed
 └── src/
-    ├── models.py           # DB Schema (Person, Asset, Appraisal, Milestone, +Phase 5 models)
+    ├── models.py           # DB Schema (Person, Asset, Appraisal, RecurringBill, etc.)
     ├── forms.py            # Polymorphic WTForms
     ├── services/           # Logic Layer (Export, Import)
     ├── routes/             # Web Handlers (Main, Manage, Settings)
@@ -49,6 +49,7 @@ open-estate-dashboard/
         ├── manage_subitem.html # Generic form for Pins/Bills/Structures
         └── ...
 
+
 ```
 
 ## 4. Current Feature Status
@@ -57,24 +58,23 @@ open-estate-dashboard/
 
 - **Infrastructure:**
 - Secure Docker container (non-root user).
-- `ops.ps1` for one-click maintenance (Wipe DB, Load Seed Data).
-- Live code synchronization via Docker volumes.
-
+- `ops.ps1` for one-click maintenance.
+- **WAL Mode Disabled:** Fixed `disk I/O error` on Windows/Docker mounts.
 - **Asset Management:**
-- **Type-First Creation:** User selects category (Real Estate, Vehicle, etc.) before data entry.
-- **Polymorphic Forms:** Specific fields for specific types.
+- **Type-First Creation:** Real Estate, Vehicles, Financials, etc.
+- **Refactoring:** "Utility" top-level asset **removed**. Utilities are now tracked as `RecurringBill` items attached to a Property.
 - **Consolidated Ledger:** Unified view with Card layout.
-- **Visual Polish:** Cards sorted by Value (High->Low) with Watermark background icons.
-
 - **Real Estate Expansion (Phase 5):**
-- **Tabbed Interface:** Organized into Overview, Accommodations, Systems, Financials, Team.
-- **Coordinate Ledger:** GPS Pin Dropper ("Where is the Septic Tank?") using native HTML5 Geolocation.
-- **Sub-Items:** Track Structures (Sheds/Pools), Recurring Bills (Taxes/Insurance), and specific Vendor assignments (Gardener/Pool Guy).
+- **Tabbed Interface:** Overview, Accommodations, Systems, Financials, Team.
+- **Coordinate Ledger:** GPS Pin Dropper for physical locations.
+- **Sub-Items:**
+- `PropertyStructure`: Sheds, Pools.
+- `RecurringBill`: Holding costs (Taxes, Water, HOA) with `account_number`.
+- `AssetVendor`: Service providers specific to an asset.
 
 - **UI/UX:**
 - **Hybrid Layout:** Sidebar uses Flexbox on Desktop and Slide-out Drawer on Mobile.
-- **Mobile Optimizations:** Touch-friendly targets, hamburger/arrow toggle.
-
+- **Mobile Optimizations:** Touch-friendly targets.
 - **Durability:**
 - **Backup:** JSON export + human-readable HTML summary.
 - **Restore:** JSON ingestion (full overwrite).
@@ -104,11 +104,10 @@ open-estate-dashboard/
 - **Asset:**
 - `asset_type`, `value_estimated`, `attributes` (JSON).
 - **Relationships:** `appraisals`, `structures`, `location_points`, `bills`, `vendors`.
-
 - **Phase 5 Extensions:**
 - `PropertyStructure`: Sheds, Decks, Pools (`date_last_maintained`).
 - `LocationPoint`: Latitude/Longitude pins (`label`, `description`).
-- `RecurringBill`: Holding costs (`payee`, `amount`, `frequency`).
+- `RecurringBill`: Holding costs (`payee`, `amount`, `frequency`, `account_number`).
 - `AssetVendor`: Links `Person` to `Asset` with a Role (`Pool Cleaner`).
 
 ## 6. Operational Commands (Cheatsheet)
@@ -119,8 +118,9 @@ open-estate-dashboard/
 .\ops.ps1
 # Menu Options:
 # 1. Update (Rebuild container)
-# 5. Wipe DB (Resets DB & Restarts Server)
+# 5. Wipe DB (Resets DB & Restarts Server - REQUIRED if schema changes)
 # 6. Seed (Loads data from scripts/)
+
 
 ```
 
@@ -130,12 +130,11 @@ open-estate-dashboard/
 # Enter Shell
 .\ops.ps1 shell
 
-# Reset Database Manually
-rm instance/estate.db
-rm -rf migrations
-flask db init
-flask db migrate -m "init"
-flask db upgrade
+# Reset Database Manually (If container crashes loop)
+# Run these on HOST machine if using Windows:
+Remove-Item instance/estate.db
+Remove-Item -Recurse migrations
+
 
 ```
 
@@ -143,12 +142,13 @@ flask db upgrade
 
 1. **Modifying Assets:**
 
-- Add new types in `src/forms.py` AND `src/routes/manage.py` (`ASSET_TYPES_META` + `ASSET_ICONS`).
+- Add new types in `src/forms.py` AND `src/routes/manage.py`.
+- **Do not** add high-maintenance types; prefer sub-items (like `RecurringBill`).
 
 2. **Database Changes:**
 
-- If modifying `models.py`, you MUST run a migration or Wipe/Reset the DB.
-- **Never** enable WAL mode in `app.py` while using Docker on Windows.
+- If modifying `models.py`, you MUST Wipe/Reset the DB (using Option 5).
+- **CRITICAL:** Never enable `PRAGMA journal_mode=WAL` in `app.py`. It causes file locking issues on Windows Docker mounts.
 
 3. **UI Changes:**
 
@@ -157,4 +157,4 @@ flask db upgrade
 
 ---
 
-_Last Updated: Phase 5 Complete (Real Estate Expansion)._
+_Last Updated: Utility Deprecation Complete & WAL Fix Applied._

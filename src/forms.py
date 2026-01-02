@@ -70,13 +70,6 @@ class PersonalItemForm(BaseAssetForm):
     appraiser_info = StringField('Appraiser Contact')
     current_value = FloatField('Appraised Value ($)', validators=[Optional()])
 
-class UtilityForm(BaseAssetForm):
-    provider = StringField('Provider (e.g. PG&E)')
-    account_number = StringField('Account Number')
-    login_username = StringField('Login Username')
-    autopay_status = SelectField('Autopay?', choices=[('Yes', 'Yes'), ('No', 'No'), ('Unknown', 'Unknown')])
-    current_value = FloatField('Average Monthly Cost (Reference Only)', validators=[Optional()])
-
 def get_form_class(type_code):
     mapping = {
         'RealEstate': RealEstateForm,
@@ -86,7 +79,6 @@ def get_form_class(type_code):
         'Liability': LiabilityForm,
         'Jewelry': PersonalItemForm,
         'Art': PersonalItemForm,
-        'Utility': UtilityForm,
         'Other': BaseAssetForm
     }
     return mapping.get(type_code, BaseAssetForm)
@@ -113,6 +105,7 @@ class PersonForm(FlaskForm):
         ('Funeral Director', 'Funeral Service'),
         ('Medical', 'Doctor / Medical POC'),
         ('Insurance', 'Insurance Agent'),
+        ('Vendor', 'Vendor / Service Provider'),
         ('Other', 'Other')
     ], validators=[DataRequired()])
     
@@ -142,6 +135,7 @@ class LocationPointForm(FlaskForm):
 class RecurringBillForm(FlaskForm):
     name = StringField('Bill Name', validators=[DataRequired()], render_kw={"placeholder": "e.g. Property Tax"})
     payee = StringField('Payee', render_kw={"placeholder": "e.g. County Treasurer"})
+    account_number = StringField('Account Number')
     amount_estimated = FloatField('Est. Amount ($)', validators=[Optional()])
     frequency = SelectField('Frequency', choices=[('Monthly', 'Monthly'), ('Annual', 'Annual'), ('Quarterly', 'Quarterly')])
     is_autopay = BooleanField('Autopay Enabled?')

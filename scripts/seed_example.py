@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import create_app
 from src.extensions import db
-from src.models import Person, Asset, Appraisal
+from src.models import Person, Asset, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor
 
 app = create_app()
 
@@ -22,8 +22,9 @@ def seed_generalized_data():
         p1 = Person(name="John Doe", role="Trustor", email="john@example.com")
         p2 = Person(name="Jane Doe", role="Trustor", email="jane@example.com")
         ben = Person(name="Junior Doe", role="Beneficiary")
+        vendor = Person(name="Green Thumb Landscaping", role="Vendor", phone="555-0199")
         
-        db.session.add_all([p1, p2, ben])
+        db.session.add_all([p1, p2, ben, vendor])
         db.session.commit()
 
         print("--- [EXAMPLE] Seeding Assets with Expanded Histories ---")
@@ -46,13 +47,62 @@ def seed_generalized_data():
         db.session.add(house)
         db.session.commit()
 
-        # History: Steady appreciation with a slight dip
+        # History: Steady appreciation
         db.session.add(Appraisal(asset_id=house.id, date=date(2010, 1, 1), value=400000.0, source="Purchase", notes="Original Purchase Price"))
         db.session.add(Appraisal(asset_id=house.id, date=date(2015, 6, 15), value=475000.0, source="Refi Appraisal", notes="Renovations complete"))
         db.session.add(Appraisal(asset_id=house.id, date=date(2018, 1, 1), value=525000.0, source="Tax Assessment"))
         db.session.add(Appraisal(asset_id=house.id, date=date(2020, 1, 1), value=550000.0, source="Refi Appraisal"))
         db.session.add(Appraisal(asset_id=house.id, date=date(2023, 1, 1), value=580000.0, source="Zillow"))
         db.session.add(Appraisal(asset_id=house.id, date=date.today(), value=600000.0, source="Zillow", notes="Current Estimate"))
+        
+        # --- Phase 5: Demo Data (Sub-items) ---
+        # Structure
+        shed = PropertyStructure(
+            asset_id=house.id,
+            name="North Garden Shed",
+            structure_type="Outbuilding",
+            description="Prefab shed on concrete pad. Contains lawnmower and tools.",
+            date_last_maintained=date(2024, 5, 1)
+        )
+        
+        # Location Pin
+        water_main = LocationPoint(
+            asset_id=house.id,
+            label="Main Water Shutoff",
+            latitude=32.715736,
+            longitude=-117.161087,
+            description="In the front flowerbed, under the large fake rock."
+        )
+        
+        # Bills (Migrated Utility + Tax)
+        water_bill = RecurringBill(
+            asset_id=house.id,
+            name="City Water",
+            payee="Metro Water Dept",
+            account_number="9988-7766-55",
+            amount_estimated=85.00,
+            frequency="Monthly",
+            is_autopay=True
+        )
+        
+        tax_bill = RecurringBill(
+            asset_id=house.id,
+            name="Property Tax",
+            payee="County Treasurer",
+            amount_estimated=6500.00,
+            frequency="Annual",
+            next_due_date=date(date.today().year, 11, 1)
+        )
+        
+        # Vendor Link
+        gardener_job = AssetVendor(
+            asset_id=house.id,
+            person_id=vendor.id,
+            role="Gardener / Landscaper",
+            notes="Comes every Tuesday morning. Gate code: 1234."
+        )
+        
+        db.session.add_all([shed, water_main, water_bill, tax_bill, gardener_job])
 
         # ==========================================
         # 2. VEHICLE (Ford F-150)
@@ -122,7 +172,7 @@ def seed_generalized_data():
         db.session.add(stock)
         db.session.commit()
         
-        # History: Market growth with 2020 and 2022 volatility
+        # History: Market growth
         db.session.add(Appraisal(asset_id=stock.id, date=date(2016, 1, 1), value=50000.0, source="Statement", notes="Initial Roll-over"))
         db.session.add(Appraisal(asset_id=stock.id, date=date(2019, 1, 1), value=85000.0, source="Statement"))
         db.session.add(Appraisal(asset_id=stock.id, date=date(2020, 3, 15), value=65000.0, source="Statement", notes="COVID Dip"))
@@ -148,7 +198,7 @@ def seed_generalized_data():
         db.session.add(ring)
         db.session.commit()
 
-        # History: Slow appreciation / Inflation adjustment
+        # History: Slow appreciation
         db.session.add(Appraisal(asset_id=ring.id, date=date(2018, 5, 20), value=8000.0, source="Local Jeweler", notes="Insurance Appraisal"))
         db.session.add(Appraisal(asset_id=ring.id, date=date(2020, 5, 20), value=8200.0, source="Insurance Adjustment"))
         db.session.add(Appraisal(asset_id=ring.id, date=date(2022, 5, 20), value=8500.0, source="Insurance Adjustment"))
@@ -243,7 +293,7 @@ def seed_generalized_data():
         db.session.add(mortgage)
         db.session.commit()
 
-        # History: Paying down principal (Value gets closer to 0, so "increases")
+        # History: Paying down principal
         db.session.add(Appraisal(asset_id=mortgage.id, date=date(2010, 1, 1), value=-380000.0, source="Loan Origination", notes="Original Principal"))
         db.session.add(Appraisal(asset_id=mortgage.id, date=date(2015, 1, 1), value=-340000.0, source="Statement"))
         db.session.add(Appraisal(asset_id=mortgage.id, date=date(2020, 1, 1), value=-295000.0, source="Refi Statement"))
@@ -274,29 +324,8 @@ def seed_generalized_data():
         db.session.add(Appraisal(asset_id=loan.id, date=date(2024, 1, 15), value=-15000.0, source="Statement"))
         db.session.add(Appraisal(asset_id=loan.id, date=date.today(), value=-13000.0, source="Online Portal", notes="Current Payoff"))
 
-        # ==========================================
-        # 11. UTILITY (Water Bill)
-        # ==========================================
-        water = Asset(
-            name="City Water Bill",
-            asset_type="Utility",
-            is_in_trust=False,
-            value_estimated=0.0,
-            owner=None,
-            attributes={
-                "provider": "City Utilities",
-                "autopay_status": "Yes",
-                "current_value": "45.00"
-            }
-        )
-        db.session.add(water)
         db.session.commit()
-        
-        # Utilities usually don't have equity value history, but we'll add a placeholder
-        db.session.add(Appraisal(asset_id=water.id, date=date.today(), value=0.0, source="System", notes="Recurring Liability Placeholder"))
-
-        db.session.commit()
-        print("✅ generalized 'seed_example.py' complete with RICH histories.")
+        print("✅ generalized 'seed_example.py' complete with RICH histories and Phase 5 features.")
 
 if __name__ == "__main__":
     seed_generalized_data()

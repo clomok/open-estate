@@ -5,7 +5,7 @@
     
     <div style="margin-bottom: 1.5rem;">
         <a href="{{ url_for('main.assets_view') }}" style="display: inline-flex; align-items: center; color: #6b7280; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
-            <span style="margin-right: 0.5rem;">&larr;</span> Back to Assets
+            <span style="margin-right: 0.5rem;">←</span> Back to Assets
         </a>
     </div>
 
@@ -181,7 +181,7 @@
                         <a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" style="color:#2563eb;">Open Map</a>
                     </td>
                     <td style="text-align:right;">
-                        <a href="{{ url_for('manage.delete_subitem', asset_id=asset.id, subitem_type='location', item_id=pin.id) }}" style="color:#ef4444;" onclick="return confirm('Delete pin?')">&times;</a>
+                        <a href="{{ url_for('manage.delete_subitem', asset_id=asset.id, subitem_type='location', item_id=pin.id) }}" style="color:#ef4444;" onclick="return confirm('Delete pin?')">×</a>
                     </td>
                 </tr>
                 {% else %}
@@ -200,7 +200,7 @@
             <thead>
                 <tr>
                     <th>Bill Name</th>
-                    <th>Payee</th>
+                    <th>Payee / Acct #</th>
                     <th>Frequency</th>
                     <th>Amount (Est)</th>
                     <th>Next Due</th>
@@ -211,12 +211,17 @@
                 {% for bill in asset.bills %}
                 <tr>
                     <td style="font-weight:bold;">{{ bill.name }}</td>
-                    <td>{{ bill.payee }}</td>
+                    <td>
+                        {{ bill.payee }}
+                        {% if bill.account_number %}
+                            <div style="font-size: 0.8rem; color: #666; font-family: monospace;">#{{ bill.account_number }}</div>
+                        {% endif %}
+                    </td>
                     <td>{{ bill.frequency }}</td>
                     <td>${{ bill.amount_estimated }}</td>
                     <td>{{ bill.next_due_date or '-' }}</td>
                     <td style="text-align:right;">
-                        <a href="{{ url_for('manage.delete_subitem', asset_id=asset.id, subitem_type='bill', item_id=bill.id) }}" style="color:#ef4444;" onclick="return confirm('Remove bill?')">&times;</a>
+                        <a href="{{ url_for('manage.delete_subitem', asset_id=asset.id, subitem_type='bill', item_id=bill.id) }}" style="color:#ef4444;" onclick="return confirm('Remove bill?')">×</a>
                     </td>
                 </tr>
                 {% else %}

@@ -19,7 +19,6 @@ ASSET_TYPES_META = [
     ('Jewelry', 'Jewelry / Watch', '💎'),
     ('Art', 'Art / Collectible', '🎨'),
     ('Liability', 'Loan / Debt', '💳'),
-    ('Utility', 'Utility Account', '💡'),
     ('Other', 'Other Asset', '📦')
 ]
 
