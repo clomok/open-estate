@@ -38,7 +38,7 @@ This project was born out of a need for a simple, resilient system to organize f
 1.  **Clone the repository:**
 
     ```bash
-    git clone [https://github.com/yourusername/open-estate-dashboard.git](https://github.com/yourusername/open-estate-dashboard.git)
+    git clone https://github.com/clomok/open-estate.git)
     cd open-estate-dashboard
     ```
 
