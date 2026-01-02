@@ -7,6 +7,19 @@ from src.forms import AppraisalForm
 
 bp = Blueprint('main', __name__)
 
+# Icon mapping for UI
+ASSET_ICONS = {
+    'RealEstate': '🏠',
+    'Bank': '🏦',
+    'Investment': '📈',
+    'Vehicle': '🚗',
+    'Jewelry': '💎',
+    'Art': '🎨',
+    'Liability': '💳',
+    'Utility': '💡',
+    'Other': '📦'
+}
+
 @bp.route('/')
 @login_required
 def dashboard():
@@ -85,14 +98,26 @@ def dashboard():
 @bp.route('/assets')
 @login_required
 def assets_view():
-    all_items = Asset.query.order_by(Asset.name).all()
-    assets_list = [a for a in all_items if a.value_estimated >= 0]
-    liabilities_list = [a for a in all_items if a.value_estimated < 0]
+    all_items = Asset.query.all()
+    
+    # Sort Assets: Highest Value First
+    assets_list = sorted(
+        [a for a in all_items if a.value_estimated >= 0],
+        key=lambda x: x.value_estimated,
+        reverse=True
+    )
+    
+    # Sort Liabilities: Most Negative (Largest Debt) First
+    liabilities_list = sorted(
+        [a for a in all_items if a.value_estimated < 0],
+        key=lambda x: x.value_estimated
+    )
     
     return render_template('assets.html', 
                            assets=assets_list, 
                            liabilities=liabilities_list, 
-                           active_page='assets')
+                           active_page='assets',
+                           asset_icons=ASSET_ICONS)
 
 @bp.route('/asset/<int:id>')
 @login_required

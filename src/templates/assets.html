@@ -27,7 +27,8 @@
             </div>
         </div>
 
-        <div style="padding-right: 2rem;"> <div style="font-size: 0.8rem; color: #6b7280; text-transform: uppercase; margin-bottom: 0.25rem;">
+        <div style="padding-right: 2rem;"> 
+            <div style="font-size: 0.8rem; color: #6b7280; text-transform: uppercase; margin-bottom: 0.25rem;">
                 {{ asset.asset_type }}
             </div>
             <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="text-decoration: none; color: inherit;">
@@ -38,7 +39,7 @@
                 ${{ "{:,.0f}".format(asset.value_estimated) }}
             </div>
 
-            <div>
+            <div style="position: relative; z-index: 10;">
                 {% if asset.is_in_trust %}
                     <span class="asset-badge badge-trust">Held in Trust</span>
                 {% elif asset.owner %}
@@ -47,12 +48,16 @@
             </div>
 
             {% if asset.attributes %}
-            <div style="margin-top: 0.75rem; font-size: 0.85rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div style="margin-top: 0.75rem; font-size: 0.85rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; z-index: 10;">
                 {% if asset.attributes.get('vin') %}VIN: {{ asset.attributes.vin }}{% endif %}
                 {% if asset.attributes.get('account_number') %}Acct: ...{{ asset.attributes.account_number[-4:] }}{% endif %}
                 {% if asset.attributes.get('address') %}{{ asset.attributes.address }}{% endif %}
             </div>
             {% endif %}
+        </div>
+        
+        <div style="position: absolute; bottom: 10px; right: 15px; font-size: 3.5rem; opacity: 0.15; user-select: none; pointer-events: none; z-index: 0;">
+            {{ asset_icons.get(asset.asset_type, '') }}
         </div>
     </div>
     {% endfor %}
@@ -93,11 +98,15 @@
                 ${{ "{:,.0f}".format(asset.value_estimated) }}
             </div>
 
-            <div>
+            <div style="position: relative; z-index: 10;">
                 {% if asset.owner %}
                     <span class="asset-badge" style="background: #f3f4f6; color: #374151;">{{ asset.owner.name }}</span>
                 {% endif %}
             </div>
+        </div>
+
+        <div style="position: absolute; bottom: 10px; right: 15px; font-size: 3.5rem; opacity: 0.15; user-select: none; pointer-events: none; z-index: 0;">
+            {{ asset_icons.get(asset.asset_type, '') }}
         </div>
     </div>
     {% endfor %}
