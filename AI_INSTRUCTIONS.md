@@ -43,6 +43,7 @@ open-estate-dashboard/
     ├── routes/             # Web Handlers (Main, Manage, Settings)
     └── templates/          # HTML (Asset Details, Ledger, Dashboard)
 
+
 ```
 
 ## 4. Current Feature Status
@@ -53,7 +54,6 @@ open-estate-dashboard/
 - Secure Docker container (non-root user).
 - `ops.ps1` for one-click maintenance (Wipe DB, Load Seed Data).
 - Live code synchronization via Docker volumes.
-
 - **Asset Management:**
 - **Type-First Creation:** User selects category (Real Estate, Vehicle, etc.) before data entry.
 - **Polymorphic Forms:** Specific fields for specific types (e.g., VIN for cars, APN for houses).
@@ -61,12 +61,10 @@ open-estate-dashboard/
 - **Consolidated Ledger:** Unified "Assets & Liabilities" view with Card layout.
 - **Valuation History:** `Appraisal` table tracks value over time.
 - **Visualization:** Interactive Line Chart for asset value history.
-
 - **UI/UX:**
 - **Hybrid Layout:** Sidebar uses Flexbox on Desktop (no overlap) and Slide-out Drawer on Mobile.
 - **Mobile Optimizations:** Touch-friendly targets, hamburger/arrow toggle.
 - **Navigation:** Back buttons and active state tracking.
-
 - **Durability:**
 - **Backup:** JSON export + human-readable HTML summary.
 - **Restore:** JSON ingestion (full overwrite).
@@ -87,6 +85,11 @@ open-estate-dashboard/
 
 - [ ] "In Case of Emergency" view for Trustees (unlocked via specific protocol).
 
+4. **Household Bills & Unified Timeline:**
+
+- [ ] **Bills Module:** Associate recurring bills (Utilities, Insurance, Tax) specifically with Real Estate assets.
+- [ ] **Unified Timeline:** Upgrade the "Planning" view to aggregate Dates from Milestones, Tasks, Bill Due Dates, and Appraisal Histories into a single "Master Timeline".
+
 ## 5. Database Schema Key Points
 
 - **Asset:**
@@ -94,7 +97,6 @@ open-estate-dashboard/
 - `value_estimated`: Float (Positive for Assets, Negative for Liabilities).
 - `attributes`: JSON (Stores VIN, Address, Account #).
 - `appraisals`: Relationship to `Appraisal` table (History).
-
 - **Appraisal:**
 - `date`, `value`, `source` (Zillow, Official, etc.).
 
@@ -108,6 +110,7 @@ open-estate-dashboard/
 # 1. Update (Rebuild container)
 # 5. Wipe DB (Resets DB & Restarts Server)
 # 6. Seed (Loads data from scripts/)
+
 
 ```
 
@@ -126,6 +129,7 @@ flask db upgrade
 
 # Run Seed
 python scripts/seed.py
+
 
 ```
 
@@ -148,4 +152,8 @@ python scripts/seed.py
 
 ---
 
-_Last Updated: Phase 4 Complete (Refined Asset Architecture & Mobile Layout)._
+_Last Updated: Phase 4 Complete (Roadmap Updated with Bills & Unified Timeline)._
+
+```
+
+```
