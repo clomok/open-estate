@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">Family & Beneficiaries</h1>
+
+<div class="grid-3">
+    {% for person in people %}
+    <div class="summary-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <h3 style="margin: 0;">{{ person.name }}</h3>
+            <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">
+                {{ person.role }}
+            </span>
+        </div>
+        
+        <div style="margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+            {% if person.email %}
+            <div style="margin-bottom: 0.5rem;">
+                <span class="summary-label">Email</span><br>
+                {{ person.email }}
+            </div>
+            {% endif %}
+            
+            {% if person.attributes %}
+                {% for key, value in person.attributes.items() %}
+                <div style="margin-bottom: 0.5rem;">
+                    <span class="summary-label">{{ key|title }}</span><br>
+                    {{ value }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

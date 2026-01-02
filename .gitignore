@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.pytest_cache/
+
+# Environment
+.env
+
+# Database & Instance Folder
+instance/
+*.db
+*.sqlite3
+
+# Tailwind/Node (Future proofing)
+node_modules/
+
+# Personal Data Seed Script
+scripts/seed.py

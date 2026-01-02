@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Estate Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    
+    <aside class="sidebar">
+        <div class="sidebar-title">The Trust</div>
+        
+        <nav>
+            <a href="{{ url_for('main.dashboard') }}" class="nav-item {% if active_page == 'overview' %}active{% endif %}">
+                Overview
+            </a>
+            <a href="{{ url_for('main.assets_view') }}" class="nav-item {% if active_page == 'assets' %}active{% endif %}">
+                Assets
+            </a>
+            <a href="{{ url_for('main.liabilities_view') }}" class="nav-item {% if active_page == 'liabilities' %}active{% endif %}">
+                Liabilities
+            </a>
+            <a href="{{ url_for('main.planning_view') }}" class="nav-item {% if active_page == 'planning' %}active{% endif %}">
+                Planning
+            </a>
+            <a href="{{ url_for('main.details_view') }}" class="nav-item {% if active_page == 'details' %}active{% endif %}">
+                Details
+            </a>
+            <a href="{{ url_for('main.faq_view') }}" class="nav-item {% if active_page == 'faq' %}active{% endif %}">
+                FAQ
+            </a>
+        </nav>
+
+        <div style="margin-top: auto; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1);">
+            <a href="{{ url_for('settings.index') }}" class="nav-item {% if active_page == 'settings' %}active{% endif %}">Settings</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-item" style="color: #fca5a5;">Logout</a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+</body>
+</html>

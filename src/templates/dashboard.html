@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">Estate Overview</h1>
+
+<div class="grid-3">
+    <div class="summary-card">
+        <div class="summary-label">Net Worth</div>
+        <div class="summary-value {% if net_worth >= 0 %}text-green{% else %}text-red{% endif %}">
+            ${{ "{:,.0f}".format(net_worth) }}
+        </div>
+        <span style="font-size: 0.9rem; color: #666;">Total Estate Value</span>
+    </div>
+
+    <div class="summary-card">
+        <div class="summary-label">Total Assets</div>
+        <div class="summary-value text-green">
+            ${{ "{:,.0f}".format(total_assets) }}
+        </div>
+    </div>
+
+    <div class="summary-card">
+        <div class="summary-label">Liabilities</div>
+        <div class="summary-value text-red">
+            ${{ "{:,.0f}".format(total_liabilities) }}
+        </div>
+    </div>
+</div>
+
+<div class="grid-3">
+    <div class="summary-card">
+        <div class="summary-label">Trust Status</div>
+        <h3>Active</h3>
+        <p style="color: #666; font-size: 0.9rem;">
+            {{ trust_count }} items currently held in trust.
+        </p>
+    </div>
+    
+    <div class="summary-card">
+        <div class="summary-label">Next Milestone</div>
+        <h3>Annual Review</h3>
+        <p style="color: #666; font-size: 0.9rem;">No immediate actions pending.</p>
+    </div>
+</div>
+{% endblock %}

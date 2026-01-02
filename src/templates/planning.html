@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">Estate Timeline</h1>
+
+<div class="timeline-container">
+    {% for event in timeline %}
+    <div class="timeline-event {% if event.is_completed %}completed{% endif %}">
+        <div>
+            <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 0.25rem;">
+                {{ event.title }}
+            </div>
+            <div style="color: #666; margin-bottom: 0.5rem;">
+                {{ event.description }}
+            </div>
+            {% if event.date_event %}
+            <div style="font-size: 0.85rem; color: #999;">
+                Target Date: {{ event.date_event.strftime('%B %Y') }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
