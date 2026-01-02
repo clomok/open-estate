@@ -8,7 +8,7 @@
 - **Core Philosophy:**
 
 1. **Simplicity First:** Standard HTML/CSS, Python, SQLite. Avoid complex JS frameworks.
-2. **Durability:** The app must be runnable 10+ years from now. No external CDNs (Chart.js is currently CDN but flagged for local vendor).
+2. **Durability:** The app must be runnable 10+ years from now. No external CDNs (Chart.js is the only exception).
 3. **Visual Clarity:** Differentiate "Technical Data" from "Family Summaries."
 4. **Mobile First:** Responsive design with a hybrid sidebar (Fixed on Desktop, Drawer on Mobile).
 
@@ -31,7 +31,7 @@ open-estate-dashboard/
 ├── .gitattributes          # Enforces LF line endings (Critical for Docker/Windows)
 ├── .env                    # Secrets (Excluded from Git)
 ├── compose.yaml            # Docker orchestration (Mounts .:/app)
-├── app.py                  # Application Factory (WAL mode explicitly disabled)
+├── app.py                  # Application Factory + Custom Jinja Filters
 ├── instance/               # Persistent DB storage (estate.db)
 ├── scripts/
 │   ├── seed.py             # Personalized data seed
@@ -45,10 +45,9 @@ open-estate-dashboard/
         ├── dashboard.html
         ├── assets.html
         ├── asset_details.html  # Tabbed Interface
-        ├── manage_asset.html
+        ├── manage_asset.html   # Smart Edit Form with Validation
         ├── manage_subitem.html # Generic form for Pins/Bills/Structures
         └── ...
-
 
 ```
 
@@ -60,31 +59,38 @@ open-estate-dashboard/
 - Secure Docker container (non-root user).
 - `ops.ps1` for one-click maintenance.
 - **WAL Mode Disabled:** Fixed `disk I/O error` on Windows/Docker mounts.
-- **Asset Management:**
-- **Type-First Creation:** Real Estate, Vehicles, Financials, etc.
-- **Refactoring:** "Utility" top-level asset **removed**. Utilities are now tracked as `RecurringBill` items attached to a Property.
-- **Consolidated Ledger:** Unified view with Card layout.
-- **Real Estate Expansion (Phase 5):**
-- **Tabbed Interface:** Overview, Accommodations, Systems, Financials, Team.
-- **Coordinate Ledger:** GPS Pin Dropper for physical locations.
-- **Sub-Items:**
-- `PropertyStructure`: Sheds, Pools.
-- `RecurringBill`: Holding costs (Taxes, Water, HOA) with `account_number`.
-- `AssetVendor`: Service providers specific to an asset.
 
-- **UI/UX:**
-- **Hybrid Layout:** Sidebar uses Flexbox on Desktop and Slide-out Drawer on Mobile.
-- **Mobile Optimizations:** Touch-friendly targets.
+- **Asset Management:**
+- **Polymorphic Ledger:** Real Estate, Vehicles, Financials, Art, Jewelry, etc.
+- **Smart Edit Forms:**
+- High-visibility "Valuation" cards for Homes/Vehicles/Art.
+- Dirty form detection (confirms discard on exit).
+- Top-left "Cancel/Back" navigation.
+
+- **Phase 5 Expansion (Real Estate):**
+- `PropertyStructure` (Sheds/Pools), `LocationPoint` (GPS Pins), `RecurringBill` (Taxes/Utilities).
+
+- **Contacts Hub (Formerly Details):**
+- **Relationship Tags:** Visual badges showing "Owns X", "Beneficiary of Y", "Service Provider for Z".
+- **Professional Roles:** Slots for Attorneys, CPAs, etc.
+
+- **UI/UX Refinements:**
+- **Global Currency:** Standardized formatting (`$1,000` or `$1,000.50`) via `| currency` filter.
+- **Wide Layout:** Asset Details view widened to 1200px for better data density.
+- **Hybrid Navigation:** Sidebar uses Flexbox on Desktop and Slide-out Drawer on Mobile.
+
 - **Durability:**
 - **Backup:** JSON export + human-readable HTML summary.
 - **Restore:** JSON ingestion (full overwrite).
 
 ### ⏳ Roadmap / Pending
 
-1. **Document Storage (Phase 6):**
+1. **Document Storage (Phase 6) - [NEXT PRIORITY]:**
 
-- [ ] Upload PDFs/Images for specific assets (stored in `instance/uploads`).
-- [ ] "Gallery" view for asset receipts/titles.
+- [ ] Configure `UPLOAD_FOLDER` in backend.
+- [ ] Create `AssetDocument` model (file path, description, upload date).
+- [ ] UI for uploading PDFs/Images to specific assets.
+- [ ] Gallery view for receipts/titles.
 
 2. **Logic Engine:**
 
@@ -104,11 +110,15 @@ open-estate-dashboard/
 - **Asset:**
 - `asset_type`, `value_estimated`, `attributes` (JSON).
 - **Relationships:** `appraisals`, `structures`, `location_points`, `bills`, `vendors`.
-- **Phase 5 Extensions:**
+
+- **Person:**
+- `role` (Trustor, Beneficiary, Vendor, etc).
+- Linked to assets via `owner_id` (ownership), `asset_beneficiaries` (inheritance), or `asset_vendor` (service jobs).
+
+- **Sub-Items (Phase 5):**
 - `PropertyStructure`: Sheds, Decks, Pools (`date_last_maintained`).
 - `LocationPoint`: Latitude/Longitude pins (`label`, `description`).
 - `RecurringBill`: Holding costs (`payee`, `amount`, `frequency`, `account_number`).
-- `AssetVendor`: Links `Person` to `Asset` with a Role (`Pool Cleaner`).
 
 ## 6. Operational Commands (Cheatsheet)
 
@@ -120,7 +130,6 @@ open-estate-dashboard/
 # 1. Update (Rebuild container)
 # 5. Wipe DB (Resets DB & Restarts Server - REQUIRED if schema changes)
 # 6. Seed (Loads data from scripts/)
-
 
 ```
 
@@ -135,7 +144,6 @@ open-estate-dashboard/
 Remove-Item instance/estate.db
 Remove-Item -Recurse migrations
 
-
 ```
 
 ## 7. Development Guidelines
@@ -143,12 +151,12 @@ Remove-Item -Recurse migrations
 1. **Modifying Assets:**
 
 - Add new types in `src/forms.py` AND `src/routes/manage.py`.
-- **Do not** add high-maintenance types; prefer sub-items (like `RecurringBill`).
+- Use `Asset.attributes` (JSON) for flexible fields rather than new columns.
 
 2. **Database Changes:**
 
 - If modifying `models.py`, you MUST Wipe/Reset the DB (using Option 5).
-- **CRITICAL:** Never enable `PRAGMA journal_mode=WAL` in `app.py`. It causes file locking issues on Windows Docker mounts.
+- **CRITICAL:** Never enable `PRAGMA journal_mode=WAL` in `app.py`.
 
 3. **UI Changes:**
 
@@ -157,4 +165,4 @@ Remove-Item -Recurse migrations
 
 ---
 
-_Last Updated: Utility Deprecation Complete & WAL Fix Applied._
+_Last Updated: Phase 5.5 Complete (UX Polish, Contacts Hub, Currency Standards)._
