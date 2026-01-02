@@ -1,21 +1,18 @@
+import json
 from flask import Blueprint, render_template
 from src.services.auth_service import login_required
 from src.models import Person, Asset, Milestone
+from src.forms import AppraisalForm
 
 bp = Blueprint('main', __name__)
 
 @bp.route('/')
 @login_required
 def dashboard():
-    # 1. Fetch Data
     all_assets = Asset.query.all()
-    
-    # 2. Calculate Financials
     total_assets = sum(a.value_estimated for a in all_assets if a.value_estimated > 0)
     total_liabilities = sum(a.value_estimated for a in all_assets if a.value_estimated < 0)
-    net_worth = total_assets + total_liabilities # Liabilities are negative, so we add
-    
-    # Count items
+    net_worth = total_assets + total_liabilities
     trust_count = sum(1 for a in all_assets if a.is_in_trust)
     
     return render_template('dashboard.html', 
@@ -28,16 +25,41 @@ def dashboard():
 @bp.route('/assets')
 @login_required
 def assets_view():
-    # Only positive assets
-    assets = Asset.query.filter(Asset.value_estimated >= 0).all()
-    return render_template('assets.html', assets=assets, active_page='assets')
+    # Fetch all items sorted by name
+    all_items = Asset.query.order_by(Asset.name).all()
+    
+    # Split them for display
+    assets_list = [a for a in all_items if a.value_estimated >= 0]
+    liabilities_list = [a for a in all_items if a.value_estimated < 0]
+    
+    return render_template('assets.html', 
+                           assets=assets_list, 
+                           liabilities=liabilities_list, 
+                           active_page='assets')
 
-@bp.route('/liabilities')
+# --- LIABILITIES ROUTE DELETED (Merged into above) ---
+
+@bp.route('/asset/<int:id>')
 @login_required
-def liabilities_view():
-    # Only negative assets (Debts)
-    debts = Asset.query.filter(Asset.value_estimated < 0).all()
-    return render_template('assets.html', assets=debts, is_liability=True, active_page='liabilities')
+def asset_details(id):
+    asset = Asset.query.get_or_404(id)
+    form = AppraisalForm()
+    
+    history = sorted(asset.appraisals, key=lambda x: x.date)
+    
+    if not history:
+        dates = [json.dumps(str(asset.attributes.get('purchase_date', 'Initial'))).strip('"')]
+        values = [asset.value_estimated]
+    else:
+        dates = [h.date.strftime('%Y-%m-%d') for h in history]
+        values = [h.value for h in history]
+    
+    return render_template('asset_details.html', 
+                           asset=asset, 
+                           form=form, 
+                           chart_dates=dates, 
+                           chart_values=values,
+                           active_page='assets')
 
 @bp.route('/planning')
 @login_required

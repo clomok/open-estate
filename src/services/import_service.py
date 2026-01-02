@@ -1,35 +1,24 @@
 import json
-from datetime import datetime
+from datetime import datetime, date
 from src.extensions import db
-from src.models import Person, Asset, Milestone, Task
+from src.models import Person, Asset, Milestone, Task, Appraisal
 
 def restore_from_json(json_content):
-    """
-    Parses a JSON string and replaces the current database state.
-    WARNING: This creates a fresh start from the backup data.
-    """
     try:
         data = json.loads(json_content)
         
-        # version_check = data.get('version') 
-        # (Future: Add logic here to handle older versions if schema changes)
-
         # 1. Clear current data
+        db.session.query(Appraisal).delete() # NEW
         db.session.query(Task).delete()
         db.session.query(Milestone).delete()
-        
-        # Clear Assets (and their relationships manually if needed)
-        # We delete beneficiaries association first via cascade or manual if not set
         db.session.execute(db.text("DELETE FROM asset_beneficiaries"))
         db.session.query(Asset).delete()
         db.session.query(Person).delete()
         
-        # 2. Rebuild People (Preserve IDs to maintain relationships)
-        id_map_people = {} # old_id -> new_instance
-        
+        # 2. Rebuild People
         for p_data in data.get('people', []):
             person = Person(
-                id=p_data['id'], # Force ID to match backup
+                id=p_data['id'],
                 name=p_data['name'],
                 role=p_data.get('role'),
                 email=p_data.get('email'),
@@ -51,9 +40,27 @@ def restore_from_json(json_content):
             )
             db.session.add(asset)
 
-        # 4. Rebuild Milestones
+        # 4. Rebuild Appraisals (NEW)
+        for app_data in data.get('appraisals', []):
+            # Parse Date
+            d_val = date.today()
+            if app_data.get('date'):
+                try:
+                    d_val = date.fromisoformat(app_data['date'])
+                except:
+                    pass 
+            
+            appraisal = Appraisal(
+                asset_id=app_data['asset_id'],
+                date=d_val,
+                value=app_data['value'],
+                source=app_data.get('source'),
+                notes=app_data.get('notes')
+            )
+            db.session.add(appraisal)
+
+        # 5. Rebuild Milestones
         for m_data in data.get('milestones', []):
-            # Parse date string back to object
             d_event = None
             if m_data.get('date_event'):
                 d_event = datetime.fromisoformat(m_data['date_event'])

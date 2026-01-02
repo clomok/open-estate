@@ -5,46 +5,39 @@
     <h1 style="margin-bottom: 2rem;">{{ title }}</h1>
 
     <div class="summary-card">
-        <form method="POST" id="assetForm">
+        <form method="POST">
             {{ form.hidden_tag() }}
 
             <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Asset Name</label>
-                {{ form.name(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Name / Title</label>
+                {{ form.name(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="e.g. Primary Residence") }}
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-                <div>
-                    <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Type</label>
-                    {{ form.asset_type(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
-                </div>
-                <div>
-                    <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Value ($)</label>
-                    {{ form.value_estimated(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;", placeholder="0.00") }}
+            <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #4b5563; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                    {{ type_code }} Details
+                </h4>
+                
+                <div class="grid-2-form">
+                    {% for field in form %}
+                        {% if field.name not in ['csrf_token', 'submit', 'name', 'is_in_trust', 'owner_id', 'asset_type'] %}
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ field.label }}</label>
+                            {{ field(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
             </div>
 
-            <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 4px;">
+            <div style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 4px;">
                 <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 1rem;">
                     {{ form.is_in_trust(style="margin-right: 0.5rem; transform: scale(1.2);") }}
                     <span style="font-weight: bold; color: #065f46;">Held in Trust</span>
                 </label>
+                
                 <label style="display: block; font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">Or Individually Owned By:</label>
                 {{ form.owner_id(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
-            </div>
-
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Attributes / Details</label>
-                <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">
-                    Add specific details (e.g., VIN, Bank Name, Location).
-                </div>
-
-                <div id="attributes-container"></div>
-
-                <button type="button" onclick="addAttributeRow()" 
-                        style="margin-top: 0.5rem; background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
-                    + Add Attribute
-                </button>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
@@ -55,62 +48,14 @@
     </div>
 </div>
 
-<script>
-    // 1. Get references
-    const container = document.getElementById('attributes-container');
-    const hiddenInput = document.getElementById('attributes_json');
-    const form = document.getElementById('assetForm');
-
-    // 2. Load existing data (passed from server via hidden input)
-    let existingData = {};
-    try {
-        existingData = JSON.parse(hiddenInput.value || '{}');
-    } catch(e) {}
-
-    // 3. Render initial rows
-    Object.keys(existingData).forEach(key => {
-        addAttributeRow(key, existingData[key]);
-    });
-
-    // Ensure at least one empty row if creating new? (Optional, maybe prefer empty)
-
-    // --- FUNCTION: Add a new row to the UI ---
-    function addAttributeRow(key = '', value = '') {
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.gap = '0.5rem';
-        row.style.marginBottom = '0.5rem';
-        row.className = 'attribute-row';
-
-        row.innerHTML = `
-            <input type="text" placeholder="Label (e.g. Color)" value="${key}" class="attr-key"
-                   style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
-            <input type="text" placeholder="Detail (e.g. Red)" value="${value}" class="attr-val"
-                   style="flex: 2; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
-            <button type="button" onclick="this.parentElement.remove()"
-                    style="background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 4px; padding: 0 0.75rem; cursor: pointer;">
-                X
-            </button>
-        `;
-        container.appendChild(row);
+<style>
+    .grid-2-form {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
-
-    // --- FUNCTION: Bundle data before submit ---
-    form.addEventListener('submit', function(e) {
-        const result = {};
-        const rows = document.querySelectorAll('.attribute-row');
-        
-        rows.forEach(row => {
-            const key = row.querySelector('.attr-key').value.trim();
-            const val = row.querySelector('.attr-val').value.trim();
-            
-            if (key) { // Only save if there is a key
-                result[key] = val;
-            }
-        });
-
-        // Put the JSON string into the hidden field so Flask can read it
-        hiddenInput.value = JSON.stringify(result);
-    });
-</script>
+    @media (min-width: 600px) {
+        .grid-2-form { grid-template-columns: 1fr 1fr; }
+    }
+</style>
 {% endblock %}

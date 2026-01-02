@@ -1,7 +1,13 @@
-/* Durable Theme - Sidebar Layout */
+/* Durable Theme - Polished Hybrid Layout */
+
+/* 1. GLOBAL RESET & BOX SIZING (Critical Fix) */
+*, *::before, *::after {
+    box-sizing: border-box; /* Ensures padding doesn't increase element size */
+}
+
 :root {
     --bg-color: #f3f4f6;
-    --sidebar-bg: #111827; /* Dark sidebar */
+    --sidebar-bg: #111827;
     --sidebar-text: #d1d5db;
     --card-bg: #ffffff;
     --text-main: #1f2937;
@@ -19,11 +25,13 @@ body {
     margin: 0;
     padding: 0;
     line-height: 1.5;
-    height: 100vh;
-    display: flex; /* Sidebar Layout */
+    min-height: 100vh;
+    /* Desktop Layout: Flexbox places Sidebar & Content side-by-side */
+    display: flex;
+    flex-direction: row;
 }
 
-/* SIDEBAR */
+/* --- SIDEBAR (Desktop Default) --- */
 .sidebar {
     width: 250px;
     background-color: var(--sidebar-bg);
@@ -32,10 +40,13 @@ body {
     flex-direction: column;
     padding: 1.5rem;
     flex-shrink: 0;
-    height: 100vh;
-    position: sticky;
+    
+    /* Sticky Fix: Pins it to the viewport, Height matches screen exactly */
+    position: sticky; 
     top: 0;
-    overflow-y: auto;
+    height: 100vh;
+    overflow-y: auto; /* Only scroll internal content if it's too long for the screen */
+    z-index: 50;
 }
 
 .sidebar-title {
@@ -59,21 +70,160 @@ body {
 .nav-item:hover { background-color: rgba(255,255,255,0.1); color: white; }
 .nav-item.active { background-color: var(--primary); color: white; }
 
-/* MAIN CONTENT */
+/* --- MAIN CONTENT --- */
 .main-content {
     flex-grow: 1;
     padding: 2rem;
-    overflow-y: auto;
+    min-width: 0; /* Prevents flex items from breaking grid layouts */
+    /* No margins needed; Flexbox handles the split */
 }
 
-/* VISUAL COMPONENTS */
+/* --- MOBILE TOGGLE --- */
+.mobile-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 60;
+    background: var(--primary);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    font-size: 1.2rem;
+    border: none;
+}
+
+/* --- RESPONSIVE (Mobile) --- */
+@media (max-width: 768px) {
+    body {
+        display: block; /* Remove flex on mobile so content stacks */
+    }
+
+    .sidebar {
+        /* Mobile Drawer Style */
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        height: 100%; /* Full height fixed */
+        width: 80%;
+        max-width: 300px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+    }
+    
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        padding-top: 5rem;
+    }
+
+    .mobile-toggle {
+        display: flex;
+    }
+    
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 40;
+    }
+    .sidebar-overlay.active { display: block; }
+}
+
+/* --- ASSET CARDS --- */
+.asset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.asset-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.asset-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.asset-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.badge-trust { background: #d1fae5; color: #065f46; }
+
+/* --- 3-DOT MENU --- */
+.action-menu {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
+.menu-btn {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+}
+.menu-btn:hover { background: #f3f4f6; color: var(--text-main); }
+
+.menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    min-width: 140px;
+    z-index: 20;
+    overflow: hidden;
+}
+.menu-dropdown.show { display: block; }
+
+.menu-item {
+    display: block;
+    padding: 0.75rem 1rem;
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.1s;
+}
+.menu-item:hover { background-color: #f9fafb; }
+.menu-item.danger { color: var(--danger); }
+.menu-item.danger:hover { background-color: #fef2f2; }
+
+/* --- SHARED --- */
 .grid-3 {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
-
 .summary-card {
     background: white;
     padding: 1.5rem;
@@ -81,7 +231,6 @@ body {
     border: 1px solid var(--border);
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-
 .summary-label { font-size: 0.875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .summary-value { font-size: 2rem; font-weight: bold; margin: 0.5rem 0; }
 .text-green { color: var(--success); }

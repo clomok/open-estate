@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <h1 style="text-align: center; margin-bottom: 2rem;">What type of item are you adding?</h1>
+
+    <div class="grid-3">
+        {% for type_code, label, icon in asset_types %}
+        <a href="{{ url_for('manage.create_asset_step2', type_code=type_code) }}" 
+           class="summary-card" 
+           style="text-decoration: none; color: inherit; transition: transform 0.2s; cursor: pointer; display: flex; flex-direction: column; align-items: center; text-align: center;">
+            
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">{{ icon }}</div>
+            <div style="font-weight: bold; color: var(--primary);">{{ label }}</div>
+            <div style="font-size: 0.8rem; color: #666; margin-top: 0.25rem;">Click to Add</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{{ url_for('main.assets_view') }}" style="color: #666;">Cancel</a>
+    </div>
+</div>
+
+<style>
+    .summary-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-color: var(--primary);
+    }
+</style>
+{% endblock %}

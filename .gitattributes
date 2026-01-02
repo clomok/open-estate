@@ -1,0 +1,17 @@
+# 1. Default: Force all text files to use LF (Linux/Docker friendly)
+* text eol=lf
+
+# 2. Windows Scripts: Force CRLF (Windows friendly)
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 3. Binary Files: NEVER touch line endings (Prevents corruption)
+*.db binary
+*.sqlite binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.zip binary

@@ -8,7 +8,12 @@
 </head>
 <body>
     
-    <aside class="sidebar">
+    <button id="sidebarToggle" class="mobile-toggle" aria-label="Open Menu">
+        &#10140; </button>
+
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <aside id="sidebar" class="sidebar">
         <div class="sidebar-title">The Trust</div>
         
         <nav>
@@ -16,10 +21,7 @@
                 Overview
             </a>
             <a href="{{ url_for('main.assets_view') }}" class="nav-item {% if active_page == 'assets' %}active{% endif %}">
-                Assets
-            </a>
-            <a href="{{ url_for('main.liabilities_view') }}" class="nav-item {% if active_page == 'liabilities' %}active{% endif %}">
-                Liabilities
+                Assets & Liabilities
             </a>
             <a href="{{ url_for('main.planning_view') }}" class="nav-item {% if active_page == 'planning' %}active{% endif %}">
                 Planning
@@ -42,5 +44,73 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const toggleBtn = document.getElementById('sidebarToggle');
+        
+        // Function to toggle state
+        function toggleMenu() {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+            
+            // Rotate arrow based on state
+            if(sidebar.classList.contains('open')) {
+                toggleBtn.innerHTML = '&#10005;'; // X symbol
+            } else {
+                toggleBtn.innerHTML = '&#10140;'; // Right Arrow
+            }
+        }
+
+        // 1. Click Toggle
+        toggleBtn.addEventListener('click', toggleMenu);
+
+        // 2. Click Overlay to Close
+        overlay.addEventListener('click', toggleMenu);
+
+        // 3. Auto-hide when loading a new page (Standard link clicks)
+        // Since this is a server-side app, the new page load naturally resets the HTML state.
+        // However, if we want to be safe for anchor links or fast navigation:
+        document.querySelectorAll('.nav-item').forEach(link => {
+            link.addEventListener('click', () => {
+                if(window.innerWidth <= 768) {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+
+        // 4. Touch Gestures (Swipe)
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+
+        document.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, {passive: true});
+
+        function handleSwipe() {
+            const threshold = 50; // Min distance to count as swipe
+            const edgeLimit = 50; // Only swipe-open if starting from the left edge
+
+            // Swipe RIGHT (Open) - Only if starting near left edge OR if menu is closed
+            if (touchEndX - touchStartX > threshold) {
+                if (touchStartX < edgeLimit && !sidebar.classList.contains('open')) {
+                    toggleMenu();
+                }
+            }
+            
+            // Swipe LEFT (Close) - Only if menu is open
+            if (touchStartX - touchEndX > threshold) {
+                if (sidebar.classList.contains('open')) {
+                    toggleMenu();
+                }
+            }
+        }
+    </script>
 </body>
 </html>
