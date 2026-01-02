@@ -27,6 +27,42 @@
     </div>
 </div>
 
+<div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">Net Worth History</h3>
+        
+        <div class="toggle-group">
+            <button class="toggle-btn active" onclick="setChartMode('total', this)">Total Net Worth</button>
+            <button class="toggle-btn" onclick="setChartMode('stacked', this)">Asset Breakdown</button>
+        </div>
+    </div>
+
+    <div style="position: relative; height: 400px; width: 100%; margin-bottom: 2rem;">
+        <canvas id="netWorthChart"></canvas>
+    </div>
+
+    <div style="border-top: 1px solid #e5e7eb; padding-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: bold; color: #6b7280; text-transform: uppercase;">
+                Visible Items
+            </div>
+            <div>
+                <button onclick="toggleAll(false)" style="font-size: 0.85rem; color: #666; background: none; border: none; cursor: pointer; text-decoration: underline; margin-right: 1rem;">Hide All</button>
+                <button onclick="toggleAll(true)" style="font-size: 0.85rem; color: #2563eb; background: none; border: none; cursor: pointer; text-decoration: underline;">Reveal All</button>
+            </div>
+        </div>
+
+        <div class="asset-toggles-grid">
+            {% for asset in chart_payload.datasets %}
+            <label class="asset-toggle" style="border-left: 4px solid {{ asset.color }};">
+                <input type="checkbox" class="asset-checkbox" value="{{ asset.id }}" checked onchange="updateChartVisibility()">
+                <span>{{ asset.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <div class="grid-3">
     <div class="summary-card">
         <div class="summary-label">Trust Status</div>
@@ -42,4 +78,236 @@
         <p style="color: #666; font-size: 0.9rem;">No immediate actions pending.</p>
     </div>
 </div>
+
+<style>
+    /* Custom Toggle Button Group */
+    .toggle-group {
+        background: #f3f4f6;
+        padding: 4px;
+        border-radius: 6px;
+        display: flex;
+        gap: 4px;
+    }
+    .toggle-btn {
+        background: transparent;
+        border: none;
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #6b7280;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .toggle-btn.active {
+        background: white;
+        color: #2563eb;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    /* Asset Grid */
+    .asset-toggles-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+    }
+    .asset-toggle {
+        display: flex;
+        align-items: center;
+        background: #f9fafb;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background 0.1s;
+    }
+    .asset-toggle:hover { background: #f3f4f6; }
+    .asset-checkbox { margin-right: 0.5rem; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+    const chartData = {{ chart_payload | tojson }};
+    const ctx = document.getElementById('netWorthChart');
+    let myChart = null;
+    let currentMode = 'total'; // 'total' or 'stacked'
+
+    // --- Custom Tooltip Positioner ("Opposite Side") ---
+    Chart.Tooltip.positioners.opposite = function(elements, eventPosition) {
+        const { chartArea: { left, right, top }, width } = this.chart;
+        const x = eventPosition.x;
+        const y = eventPosition.y;
+
+        // If mouse is on left half, anchor tooltip to Right Edge
+        if (x < width / 2) {
+            this.options.xAlign = 'right'; // Align text/box to the left of the anchor
+            return { x: right, y: y };
+        } 
+        // If mouse is on right half, anchor tooltip to Left Edge
+        else {
+            this.options.xAlign = 'left'; // Align text/box to the right of the anchor
+            return { x: left, y: y };
+        }
+    };
+
+    function initChart() {
+        const config = getChartConfig();
+        myChart = new Chart(ctx, config);
+    }
+
+    function getChartConfig() {
+        // Filter datasets based on checkboxes
+        const visibleIds = Array.from(document.querySelectorAll('.asset-checkbox:checked')).map(cb => parseInt(cb.value));
+        const activeDatasets = chartData.datasets.filter(ds => visibleIds.includes(ds.id));
+
+        let finalDatasets = [];
+
+        // 1. Calculate Total Net Worth Line
+        let totalData = [];
+        if (activeDatasets.length > 0) {
+            totalData = chartData.dates.map((_, i) => {
+                return activeDatasets.reduce((sum, ds) => sum + ds.data[i], 0);
+            });
+        }
+
+        if (currentMode === 'total') {
+            if (activeDatasets.length > 0) {
+                finalDatasets.push({
+                    label: 'Total Net Worth',
+                    data: totalData,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderWidth: 4,
+                    fill: true,
+                    // Monotone prevents overshoot ("scoops") while keeping curves
+                    cubicInterpolationMode: 'monotone', 
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                });
+            }
+        } else {
+            // Stacked Mode
+            finalDatasets = activeDatasets.map(ds => {
+                const stackGroup = ds.current_value >= 0 ? 'stack_assets' : 'stack_liabilities';
+                
+                return {
+                    label: ds.label,
+                    data: ds.data,
+                    borderColor: ds.color,
+                    backgroundColor: ds.color + '33', // 20% opacity
+                    borderWidth: 1,
+                    fill: true,
+                    cubicInterpolationMode: 'monotone', // Smooths without scoops
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    stack: stackGroup
+                };
+            });
+
+            // Add Net Worth Line
+            finalDatasets.push({
+                label: 'Net Worth',
+                data: totalData,
+                type: 'line', 
+                borderColor: '#111827', 
+                borderWidth: 4, 
+                backgroundColor: 'transparent',
+                fill: false,
+                cubicInterpolationMode: 'monotone', // Consistent smoothing
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                stack: 'stack_networth', 
+                order: -1
+            });
+        }
+
+        return {
+            type: 'line',
+            data: {
+                labels: chartData.dates,
+                datasets: finalDatasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: { 
+                        display: currentMode === 'stacked',
+                        labels: {
+                            usePointStyle: true,
+                            boxWidth: 8
+                        }
+                    }, 
+                    tooltip: {
+                        position: 'opposite', // USE CUSTOM POSITIONER
+                        yAlign: 'center', // Vertically center the tooltip on the Y point
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'month' },
+                        grid: { display: false }
+                    },
+                    y: {
+                        stacked: currentMode === 'stacked',
+                        beginAtZero: true,
+                        grid: { 
+                            color: '#f3f4f6',
+                            lineWidth: (ctx) => ctx.tick.value === 0 ? 2 : 1
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: "compact" }).format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    function setChartMode(mode, btn) {
+        currentMode = mode;
+        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        myChart.destroy();
+        myChart = new Chart(ctx, getChartConfig());
+    }
+
+    function updateChartVisibility() {
+        myChart.destroy();
+        myChart = new Chart(ctx, getChartConfig());
+    }
+
+    function toggleAll(state) {
+        document.querySelectorAll('.asset-checkbox').forEach(cb => {
+            cb.checked = state;
+        });
+        updateChartVisibility();
+    }
+
+    document.addEventListener('DOMContentLoaded', initChart);
+</script>
 {% endblock %}
