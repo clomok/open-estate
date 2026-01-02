@@ -9,18 +9,6 @@
     </a>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-        <div style="padding: 1rem; margin-bottom: 1rem; border-radius: 4px; 
-            background: {% if category == 'success' %}#d1fae5{% else %}#fee2e2{% endif %}; 
-            color: {% if category == 'success' %}#065f46{% else %}#991b1b{% endif %};">
-            {{ message }}
-        </div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
-
 <h2 style="margin-bottom: 1rem; font-size: 1.25rem; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem;">Assets</h2>
 
 {% if assets %}

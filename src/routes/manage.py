@@ -107,6 +107,8 @@ def add_appraisal(id):
         )
         db.session.add(appraisal)
         
+        # Simple logic: If we add a new appraisal, we assume it's the current value
+        # if the date is recent. For simplicity in V1, we overwrite.
         if form.date.data:
             asset.value_estimated = form.value.data
             
@@ -118,6 +120,61 @@ def add_appraisal(id):
             flash(f'Error: {str(e)}', 'error')
             
     return redirect(url_for('main.asset_details', id=id))
+
+@bp.route('/appraisal/<int:id>/edit', methods=['POST'])
+@login_required
+def edit_appraisal(id):
+    appraisal = Appraisal.query.get_or_404(id)
+    form = AppraisalForm()
+    
+    # We validate strictly, but the form data comes from the modal
+    if form.validate_on_submit():
+        appraisal.date = form.date.data
+        appraisal.value = form.value.data
+        appraisal.source = form.source.data
+        appraisal.notes = form.notes.data
+        
+        # Check if this is the most recent appraisal for the asset.
+        # If so, update the main Asset value to match.
+        latest = Appraisal.query.filter_by(asset_id=appraisal.asset_id).order_by(Appraisal.date.desc()).first()
+        if latest and appraisal.id == latest.id:
+             appraisal.asset.value_estimated = form.value.data
+             
+        try:
+            db.session.commit()
+            flash('Valuation updated successfully.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating valuation: {str(e)}', 'error')
+    else:
+        flash('Invalid data submitted for valuation update.', 'error')
+        
+    return redirect(url_for('main.asset_details', id=appraisal.asset_id))
+
+@bp.route('/appraisal/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_appraisal(id):
+    appraisal = Appraisal.query.get_or_404(id)
+    asset_id = appraisal.asset_id
+    
+    try:
+        db.session.delete(appraisal)
+        db.session.commit()
+        
+        # Re-calculate the asset's current value based on the remaining latest appraisal
+        latest = Appraisal.query.filter_by(asset_id=asset_id).order_by(Appraisal.date.desc()).first()
+        asset = Asset.query.get(asset_id)
+        if latest:
+            asset.value_estimated = latest.value
+        # If no appraisals exist, we leave the value as is (or could set to 0)
+        
+        db.session.commit()
+        flash('Valuation deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting valuation: {str(e)}', 'error')
+        
+    return redirect(url_for('main.asset_details', id=asset_id))
 
 def save_asset_from_form(asset, form):
     asset.name = form.name.data

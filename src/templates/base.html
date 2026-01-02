@@ -9,7 +9,8 @@
 <body>
     
     <button id="sidebarToggle" class="mobile-toggle" aria-label="Open Menu">
-        &#10140; </button>
+        &#10140; 
+    </button>
 
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
@@ -41,6 +42,25 @@
     </aside>
 
     <main class="main-content">
+        <div class="toast-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="toast {{ category }}">
+                        <div class="toast-message">{{ message }}</div>
+                        <button class="toast-close" aria-label="Close">
+                            <svg class="timer-svg" viewBox="0 0 32 32">
+                                <circle class="timer-circle-bg" cx="16" cy="16" r="14"></circle>
+                                <circle class="timer-progress" cx="16" cy="16" r="14"></circle>
+                            </svg>
+                            <span style="position: relative; z-index: 2; font-size: 1.2rem; line-height: 1;">&times;</span>
+                        </button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
         {% block content %}{% endblock %}
     </main>
 
@@ -69,8 +89,6 @@
         overlay.addEventListener('click', toggleMenu);
 
         // 3. Auto-hide when loading a new page (Standard link clicks)
-        // Since this is a server-side app, the new page load naturally resets the HTML state.
-        // However, if we want to be safe for anchor links or fast navigation:
         document.querySelectorAll('.nav-item').forEach(link => {
             link.addEventListener('click', () => {
                 if(window.innerWidth <= 768) {
@@ -94,23 +112,45 @@
         }, {passive: true});
 
         function handleSwipe() {
-            const threshold = 50; // Min distance to count as swipe
-            const edgeLimit = 50; // Only swipe-open if starting from the left edge
+            const threshold = 50; 
+            const edgeLimit = 50; 
 
-            // Swipe RIGHT (Open) - Only if starting near left edge OR if menu is closed
             if (touchEndX - touchStartX > threshold) {
                 if (touchStartX < edgeLimit && !sidebar.classList.contains('open')) {
                     toggleMenu();
                 }
             }
             
-            // Swipe LEFT (Close) - Only if menu is open
             if (touchStartX - touchEndX > threshold) {
                 if (sidebar.classList.contains('open')) {
                     toggleMenu();
                 }
             }
         }
+
+        // 5. Toast Notification Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast');
+            
+            toasts.forEach(toast => {
+                const closeBtn = toast.querySelector('.toast-close');
+                
+                const dismiss = () => {
+                    // Start fade out animation
+                    toast.style.animation = 'fadeOut 0.3s forwards';
+                    // Remove from DOM after animation completes
+                    toast.addEventListener('animationend', () => {
+                        toast.remove();
+                    });
+                };
+
+                // Manual Close
+                closeBtn.addEventListener('click', dismiss);
+
+                // Auto Close Timer (5 seconds)
+                setTimeout(dismiss, 5000);
+            });
+        });
     </script>
 </body>
 </html>
