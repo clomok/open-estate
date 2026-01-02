@@ -1,7 +1,8 @@
 import json
-from datetime import date
-from flask import Blueprint, render_template
+from datetime import date, datetime
+from flask import Blueprint, render_template, request
 from src.services.auth_service import login_required
+from src.services.timeline_service import get_timeline_events
 from src.models import Person, Asset, Milestone, Task, Appraisal
 from src.forms import AppraisalForm
 
@@ -140,23 +141,44 @@ def asset_details(id):
                            chart_values=values,
                            active_page='assets')
 
-@bp.route('/planning')
+@bp.route('/timeline')
 @login_required
-def planning_view():
-    timeline = Milestone.query.order_by(Milestone.id).all()
-    return render_template('planning.html', timeline=timeline, active_page='planning')
+def timeline_view():
+    # Get filters from URL
+    active_filters = request.args.getlist('type')
+    if not active_filters:
+        active_filters = None 
+    
+    all_events = get_timeline_events(active_filters)
+    
+    today = date.today()
+    
+    # SPLIT LOGIC UPDATED:
+    # History = Everything <= Today
+    # Upcoming = Everything > Today
+    history = [e for e in all_events if e['date'] <= today]
+    upcoming = [e for e in all_events if e['date'] > today]
+    
+    # Sort History: Newest First (Descending)
+    history.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Sort Upcoming: Soonest First (Ascending)
+    upcoming.sort(key=lambda x: x['date'])
+    
+    return render_template('timeline.html', 
+                           history=history, 
+                           upcoming=upcoming, 
+                           active_page='timeline',
+                           current_filters=active_filters or [])
 
-# --- UPDATED DETAILS VIEW FOR CONTACTS ---
 @bp.route('/details')
 @login_required
 def details_view():
     all_people = Person.query.order_by(Person.name).all()
     
-    # Define Roles
     family_roles = ['Trustor', 'Trustee', 'Beneficiary', 'Executor']
     family = [p for p in all_people if p.role in family_roles]
     
-    # Define Professional Roles Metadata (Role Code, Display Name, Icon)
     pro_roles_meta = [
         ('Attorney', 'Estate Attorney'),
         ('Financial Advisor', 'Financial Advisor'),
@@ -166,11 +188,9 @@ def details_view():
         ('Medical', 'Primary Doctor')
     ]
     
-    # Filter Existing Pros
     pros = [p for p in all_people if p.role not in family_roles]
     existing_roles = {p.role for p in pros}
     
-    # Identify Missing Slots
     missing_pros = []
     for role_code, label in pro_roles_meta:
         if role_code not in existing_roles:

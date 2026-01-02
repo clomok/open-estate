@@ -39,15 +39,15 @@ open-estate-dashboard/
 └── src/
     ├── models.py           # DB Schema (Person, Asset, Appraisal, RecurringBill, etc.)
     ├── forms.py            # Polymorphic WTForms
-    ├── services/           # Logic Layer (Export, Import)
+    ├── services/           # Logic Layer (Export, Import, Timeline)
     ├── routes/             # Web Handlers (Main, Manage, Settings)
     └── templates/          # HTML Templates
         ├── dashboard.html
+        ├── timeline.html   # Unified Timeline View
         ├── assets.html
-        ├── asset_details.html  # Tabbed Interface
-        ├── manage_asset.html   # Smart Edit Form with Validation
-        ├── manage_subitem.html # Generic form for Pins/Bills/Structures
+        ├── asset_details.html
         └── ...
+
 
 ```
 
@@ -62,26 +62,21 @@ open-estate-dashboard/
 
 - **Asset Management:**
 - **Polymorphic Ledger:** Real Estate, Vehicles, Financials, Art, Jewelry, etc.
-- **Smart Edit Forms:**
-- High-visibility "Valuation" cards for Homes/Vehicles/Art.
-- Dirty form detection (confirms discard on exit).
-- Top-left "Cancel/Back" navigation.
+- **Smart Edit Forms:** High-visibility "Valuation" cards.
 
-- **Phase 5 Expansion (Real Estate):**
+- **Phase 5 Expansion:**
 - `PropertyStructure` (Sheds/Pools), `LocationPoint` (GPS Pins), `RecurringBill` (Taxes/Utilities).
 
-- **Contacts Hub (Formerly Details):**
-- **Relationship Tags:** Visual badges showing "Owns X", "Beneficiary of Y", "Service Provider for Z".
-- **Professional Roles:** Slots for Attorneys, CPAs, etc.
+- **Contacts Hub:**
+- Relationship Tags and Professional Roles.
 
-- **UI/UX Refinements:**
-- **Global Currency:** Standardized formatting (`$1,000` or `$1,000.50`) via `| currency` filter.
-- **Wide Layout:** Asset Details view widened to 1200px for better data density.
-- **Hybrid Navigation:** Sidebar uses Flexbox on Desktop and Slide-out Drawer on Mobile.
+- **Unified Timeline (New):**
+- "Center-Out" design with floating headers.
+- Filters and Saved Views (LocalStorage).
+- Aggregates Milestones, Tasks, Bills, and Asset History.
 
 - **Durability:**
-- **Backup:** JSON export + human-readable HTML summary.
-- **Restore:** JSON ingestion (full overwrite).
+- Backup (JSON/HTML) & Restore.
 
 ### ⏳ Roadmap / Pending
 
@@ -101,10 +96,6 @@ open-estate-dashboard/
 
 - [ ] "In Case of Emergency" view for Trustees (unlocked via specific protocol).
 
-4. **Unified Timeline:**
-
-- [ ] Upgrade "Planning" view to aggregate Dates from Milestones, Tasks, Bill Due Dates, and Appraisal Histories.
-
 ## 5. Database Schema Key Points
 
 - **Asset:**
@@ -113,12 +104,9 @@ open-estate-dashboard/
 
 - **Person:**
 - `role` (Trustor, Beneficiary, Vendor, etc).
-- Linked to assets via `owner_id` (ownership), `asset_beneficiaries` (inheritance), or `asset_vendor` (service jobs).
 
-- **Sub-Items (Phase 5):**
-- `PropertyStructure`: Sheds, Decks, Pools (`date_last_maintained`).
-- `LocationPoint`: Latitude/Longitude pins (`label`, `description`).
-- `RecurringBill`: Holding costs (`payee`, `amount`, `frequency`, `account_number`).
+- **Sub-Items:**
+- `PropertyStructure`, `LocationPoint`, `RecurringBill`.
 
 ## 6. Operational Commands (Cheatsheet)
 
@@ -131,6 +119,7 @@ open-estate-dashboard/
 # 5. Wipe DB (Resets DB & Restarts Server - REQUIRED if schema changes)
 # 6. Seed (Loads data from scripts/)
 
+
 ```
 
 **Manual Commands (Inside Container):**
@@ -140,29 +129,12 @@ open-estate-dashboard/
 .\ops.ps1 shell
 
 # Reset Database Manually (If container crashes loop)
-# Run these on HOST machine if using Windows:
 Remove-Item instance/estate.db
 Remove-Item -Recurse migrations
 
+
 ```
-
-## 7. Development Guidelines
-
-1. **Modifying Assets:**
-
-- Add new types in `src/forms.py` AND `src/routes/manage.py`.
-- Use `Asset.attributes` (JSON) for flexible fields rather than new columns.
-
-2. **Database Changes:**
-
-- If modifying `models.py`, you MUST Wipe/Reset the DB (using Option 5).
-- **CRITICAL:** Never enable `PRAGMA journal_mode=WAL` in `app.py`.
-
-3. **UI Changes:**
-
-- Modify `src/static/css/style.css`.
-- Always test mobile view (resize browser) to ensure the Drawer works.
 
 ---
 
-_Last Updated: Phase 5.5 Complete (UX Polish, Contacts Hub, Currency Standards)._
+_Last Updated: Unified Timeline Complete._
