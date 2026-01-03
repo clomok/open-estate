@@ -465,6 +465,28 @@ body {
     flex-grow: 1; 
 }
 
+/* BADGE STYLES */
+.timeline-badge {
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    flex-shrink: 0; 
+    margin-left: 1rem;
+    margin-right: 0.5rem;
+}
+/* Badge Colors */
+.badge-financial { background: #fee2e2; color: #991b1b; }   /* Red */
+.badge-task { background: #fef3c7; color: #92400e; }        /* Amber */
+.badge-milestone { background: #dbeafe; color: #1e40af; }   /* Blue */
+.badge-maintenance { background: #f3e8ff; color: #6b21a8; } /* Purple */
+.badge-asset { background: #d1fae5; color: #065f46; }       /* Green */
+.badge-history { background: #f3f4f6; color: #374151; }     /* Gray */
+
+
 /* Mobile Fallback: Stack vertically on narrow screens */
 @media (max-width: 600px) {
     .timeline-content {
@@ -474,6 +496,10 @@ body {
     }
     .timeline-desc {
         white-space: normal; /* Allow wrapping on mobile */
+    }
+    .timeline-badge {
+        margin-left: 0;
+        align-self: flex-start;
     }
 }
 

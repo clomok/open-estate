@@ -22,6 +22,7 @@ def get_timeline_events(filter_types=None):
         'title': str,
         'description': str,
         'type': str (financial, asset, maintenance, milestone, task),
+        'type_label': str, # NEW: For UI Badge
         'icon': str,
         'link': str,
         'is_past': bool
@@ -41,6 +42,7 @@ def get_timeline_events(filter_types=None):
                     'title': m.title,
                     'description': m.description,
                     'type': 'milestone',
+                    'type_label': 'Milestone',
                     'icon': '🚩',
                     'link': '#', # No edit UI for milestones yet
                     'is_past': d < today
@@ -51,9 +53,10 @@ def get_timeline_events(filter_types=None):
         for b in RecurringBill.query.filter(RecurringBill.next_due_date != None).all():
             events.append({
                 'date': b.next_due_date,
-                'title': f"Bill Due: {b.name}",
+                'title': b.name,
                 'description': f"Payee: {b.payee} (~${b.amount_estimated:.0f})",
                 'type': 'financial',
+                'type_label': 'Bill Due',
                 'icon': '💳',
                 'link': url_for('main.asset_details', id=b.asset_id) + '#tab-bills',
                 'is_past': b.next_due_date < today
@@ -68,6 +71,7 @@ def get_timeline_events(filter_types=None):
                 'title': t.title,
                 'description': f"Status: {t.status}",
                 'type': 'task',
+                'type_label': 'Task',
                 'icon': '✅',
                 'link': url_for('main.asset_details', id=t.asset_id) if t.asset_id else '#',
                 'is_past': d < today
@@ -86,9 +90,10 @@ def get_timeline_events(filter_types=None):
                     p_date = datetime.strptime(p_date_str, '%Y-%m-%d').date()
                     events.append({
                         'date': p_date,
-                        'title': f"Purchased: {a.name}",
+                        'title': a.name,
                         'description': f"Acquired for estate.",
                         'type': 'asset',
+                        'type_label': 'Purchased',
                         'icon': icon_char, # Updated to match asset
                         'link': url_for('main.asset_details', id=a.id),
                         'is_past': True
@@ -100,9 +105,10 @@ def get_timeline_events(filter_types=None):
             for app in a.appraisals:
                 events.append({
                     'date': app.date,
-                    'title': f"Appraisal: {a.name}",
+                    'title': a.name,
                     'description': f"Valued at ${app.value:,.0f} ({app.source})",
                     'type': 'history',
+                    'type_label': 'Appraisal',
                     'icon': icon_char, # Updated to match asset
                     'link': url_for('main.asset_details', id=a.id),
                     'is_past': True
@@ -113,9 +119,10 @@ def get_timeline_events(filter_types=None):
         for s in PropertyStructure.query.filter(PropertyStructure.date_last_maintained != None).all():
             events.append({
                 'date': s.date_last_maintained,
-                'title': f"Maintained: {s.name}",
+                'title': s.name,
                 'description': s.notes or "Routine maintenance logged.",
                 'type': 'maintenance',
+                'type_label': 'Maintenance',
                 'icon': '🛠️',
                 'link': url_for('main.asset_details', id=s.asset_id) + '#tab-structures',
                 'is_past': True

@@ -66,6 +66,7 @@
                                 <div class="timeline-date">{{ event.date.strftime('%b %d, %Y') }}</div>
                                 <div class="timeline-title">{{ event.title }}</div>
                                 <div class="timeline-desc">{{ event.description }}</div>
+                                <div class="timeline-badge badge-{{ event.type }}">{{ event.type_label }}</div>
                             </div>
                         </a>
                     {% endfor %}
@@ -94,6 +95,7 @@
                                 <div class="timeline-date">{{ event.date.strftime('%b %d, %Y') }}</div>
                                 <div class="timeline-title">{{ event.title }}</div>
                                 <div class="timeline-desc">{{ event.description }}</div>
+                                <div class="timeline-badge badge-{{ event.type }}">{{ event.type_label }}</div>
                             </div>
                         </a>
                     {% endfor %}
