@@ -2,6 +2,18 @@ from datetime import date, datetime
 from flask import url_for
 from src.models import Milestone, Task, RecurringBill, Asset, PropertyStructure, Appraisal
 
+# Define icons here to be available for logic
+ASSET_ICONS = {
+    'RealEstate': '🏠',
+    'Bank': '🏦',
+    'Investment': '📈',
+    'Vehicle': '🚗',
+    'Jewelry': '💎',
+    'Art': '🎨',
+    'Liability': '💳',
+    'Other': '📦'
+}
+
 def get_timeline_events(filter_types=None):
     """
     Aggregates all dated items into a standardized event list.
@@ -64,6 +76,9 @@ def get_timeline_events(filter_types=None):
     # 4. ASSET HISTORY (Purchases & Appraisals)
     if not filter_types or 'history' in filter_types:
         for a in Asset.query.all():
+            # Get specific icon or default
+            icon_char = ASSET_ICONS.get(a.asset_type, '📦')
+
             # A. Purchase Date (from attributes)
             p_date_str = a.attributes.get('purchase_date')
             if p_date_str:
@@ -74,7 +89,7 @@ def get_timeline_events(filter_types=None):
                         'title': f"Purchased: {a.name}",
                         'description': f"Acquired for estate.",
                         'type': 'asset',
-                        'icon': '🏠',
+                        'icon': icon_char, # Updated to match asset
                         'link': url_for('main.asset_details', id=a.id),
                         'is_past': True
                     })
@@ -88,7 +103,7 @@ def get_timeline_events(filter_types=None):
                     'title': f"Appraisal: {a.name}",
                     'description': f"Valued at ${app.value:,.0f} ({app.source})",
                     'type': 'history',
-                    'icon': '📈',
+                    'icon': icon_char, # Updated to match asset
                     'link': url_for('main.asset_details', id=a.id),
                     'is_past': True
                 })

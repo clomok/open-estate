@@ -262,7 +262,7 @@ body {
 .data-table tr:last-child td { border-bottom: none; }
 
 
-/* --- TIMELINE NEW STYLES --- */
+/* --- TIMELINE STYLES --- */
 .timeline-wrapper {
     display: flex;
     flex-direction: column;
@@ -301,10 +301,12 @@ body {
     border-bottom: none;
 }
 
-/* Expansion States */
+/* EXPANSION STATES 
+   Default behavior: 50/50 split if both expanded
+*/
 .timeline-column.expanded {
     flex-grow: 1;
-    flex-basis: 0; /* Critical: Forces equal height split ignoring content size */
+    flex-basis: 0; /* Forces equal height split ignoring content size */
 }
 
 .timeline-column.collapsed {
@@ -313,6 +315,22 @@ body {
     flex-basis: auto;
     /* Just show header */
 }
+
+/* DUAL VIEW OVERRIDE 
+   When both are open, allow Upcoming (top) to shrink to fit content, 
+   but cap it at 50% max height. History (bottom) fills the rest.
+*/
+.timeline-split-view.dual-view #section-upcoming.expanded {
+    flex-grow: 0;     /* Do not grow greedily */
+    flex-basis: auto; /* Size based on content height */
+    max-height: 50%;  /* Cap at 50% */
+}
+
+.timeline-split-view.dual-view #section-history.expanded {
+    flex-grow: 1;     /* Take all remaining space */
+    flex-basis: 0;    /* Force fill */
+}
+
 
 /* --- DYNAMIC HEADER STYLES --- */
 .timeline-header {
@@ -386,34 +404,78 @@ body {
 }
 
 
+/* --- UPDATED TIMELINE CARD (Horizontal Layout) --- */
 .timeline-card {
     display: flex;
+    align-items: center; /* Center items vertically */
     background: white;
-    padding: 1rem;
+    padding: 0.5rem 0.75rem; /* Reduced padding for minimal vertical height */
     border-radius: 6px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem; /* Reduce gap between items */
     text-decoration: none;
     color: var(--text-main);
-    border-left: 4px solid #ccc;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    transition: transform 0.2s;
-    align-items: flex-start;
     border: 1px solid #e5e7eb;
     border-left-width: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
 }
 .timeline-card:hover { transform: translateX(5px); }
 
 .timeline-icon {
-    font-size: 1.5rem;
+    font-size: 1.25rem; /* Slightly smaller icon */
     margin-right: 1rem;
-    min-width: 2rem;
+    min-width: 1.5rem;
     text-align: center;
 }
 
-.timeline-content { flex-grow: 1; }
-.timeline-date { font-size: 0.8rem; color: var(--text-muted); font-weight: bold; margin-bottom: 0.25rem; }
-.timeline-title { font-size: 1rem; font-weight: bold; margin-bottom: 0.25rem; }
-.timeline-desc { font-size: 0.85rem; color: #666; }
+/* Horizontal Content Layout */
+.timeline-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: row; /* Horizontal alignment */
+    align-items: center;
+    gap: 1.5rem; /* Standardized spacing */
+    min-width: 0; /* Prevents text overflow breaking flex */
+}
+
+.timeline-date {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: bold;
+    min-width: 90px; /* Fixed width for column alignment */
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+
+.timeline-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    white-space: nowrap;
+    margin-bottom: 0;
+}
+
+.timeline-desc {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Pushes description to take up remaining space */
+    flex-grow: 1; 
+}
+
+/* Mobile Fallback: Stack vertically on narrow screens */
+@media (max-width: 600px) {
+    .timeline-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    .timeline-desc {
+        white-space: normal; /* Allow wrapping on mobile */
+    }
+}
 
 /* Timeline Types Colors */
 .timeline-card.type-financial { border-left-color: #ef4444; }

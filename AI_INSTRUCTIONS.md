@@ -70,10 +70,12 @@ open-estate-dashboard/
 - **Contacts Hub:**
 - Relationship Tags and Professional Roles.
 
-- **Unified Timeline (New):**
-- "Center-Out" design with floating headers.
+- **Unified Timeline (Polished):**
+- **Split-View Layout:** Upcoming vs. History with collapsible headers.
+- **Dynamic Resizing:** "Upcoming" section shrinks to fit content (max 50%) when dual-view is active.
+- **Visual Consistency:** Asset-specific icons (e.g., 🏠 for House History) used in timeline events.
+- **Horizontal Cards:** High-density layout minimizing vertical scrolling.
 - Filters and Saved Views (LocalStorage).
-- Aggregates Milestones, Tasks, Bills, and Asset History.
 
 - **Durability:**
 - Backup (JSON/HTML) & Restore.
@@ -137,4 +139,4 @@ Remove-Item -Recurse migrations
 
 ---
 
-_Last Updated: Unified Timeline Complete._
+_Last Updated: Timeline Visual Polish (Icons & Split View)._

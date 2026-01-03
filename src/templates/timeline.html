@@ -107,6 +107,23 @@
 </div>
 
 <script>
+    // New function to handle split-view logic
+    function updateLayoutState() {
+        const upcoming = document.getElementById('section-upcoming');
+        const history = document.getElementById('section-history');
+        const wrapper = document.querySelector('.timeline-split-view');
+        
+        const isUpcomingOpen = upcoming.classList.contains('expanded');
+        const isHistoryOpen = history.classList.contains('expanded');
+
+        // Toggle dual-view class on wrapper
+        if (isUpcomingOpen && isHistoryOpen) {
+            wrapper.classList.add('dual-view');
+        } else {
+            wrapper.classList.remove('dual-view');
+        }
+    }
+
     function toggleSection(targetName) {
         const upcomingSec = document.getElementById('section-upcoming');
         const historySec = document.getElementById('section-history');
@@ -150,7 +167,13 @@
             // User is clicking an open section -> Hide it
             setState(target, targetIcon, true);
         }
+        
+        // Update global layout class
+        updateLayoutState();
     }
+    
+    // Initialize layout state on load
+    document.addEventListener('DOMContentLoaded', updateLayoutState);
 
     // --- Saved Views Logic ---
     function saveCurrentView() {
