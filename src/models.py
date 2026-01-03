@@ -109,3 +109,20 @@ class AssetVendor(db.Model):
     person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
     role = db.Column(db.String(100), nullable=False)     # e.g. "Pool Cleaner", "Landscaper" (Specific to this asset)
     notes = db.Column(db.Text)
+
+# --- PHASE 6: TRUST DETAILS ---
+
+class TrustProfile(db.Model):
+    """Singleton model to store high-level trust configuration."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), default="The Family Trust")
+    date_established = db.Column(db.Date, nullable=True)
+    
+    # Transition Planning
+    date_death_estimated = db.Column(db.Date, nullable=True)  # "Projected Horizon"
+    date_death_actual = db.Column(db.Date, nullable=True)     # Triggers active transition mode
+    
+    # Administrative
+    review_frequency = db.Column(db.String(50), default="Annual")
+    next_review_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text)

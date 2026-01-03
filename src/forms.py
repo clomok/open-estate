@@ -150,3 +150,21 @@ class AssetVendorForm(FlaskForm):
     role = StringField('Service Role', validators=[DataRequired()], render_kw={"placeholder": "e.g. Pool Cleaner, Gardener"})
     notes = TextAreaField('Notes', render_kw={"placeholder": "Account #, Gate Code for them..."})
     submit = SubmitField('Assign Vendor')
+
+# --- PHASE 6: TRUST PROFILE FORM ---
+class TrustProfileForm(FlaskForm):
+    name = StringField('Official Trust Name', validators=[DataRequired()])
+    date_established = DateField('Date Established', validators=[Optional()])
+    
+    # Sensitive
+    date_death_estimated = DateField('Actuarial Horizon / Estimate', validators=[Optional()], 
+                                   description="Used for planning projections only.")
+    date_death_actual = DateField('Actual Date of Passing', validators=[Optional()],
+                                description="Setting this enters Transition Mode.")
+    
+    # Review
+    review_frequency = SelectField('Review Frequency', choices=[('Annual', 'Annual'), ('Quarterly', 'Quarterly')])
+    next_review_date = DateField('Next Review Scheduled', validators=[Optional()])
+    
+    notes = TextAreaField('Trust Notes', render_kw={"rows": 5})
+    submit = SubmitField('Save Trust Details')

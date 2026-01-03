@@ -49,6 +49,7 @@ open-estate-dashboard/
         └── ...
 
 
+
 ```
 
 ## 4. Current Feature Status
@@ -59,26 +60,26 @@ open-estate-dashboard/
 - Secure Docker container (non-root user).
 - `ops.ps1` for one-click maintenance.
 - **WAL Mode Disabled:** Fixed `disk I/O error` on Windows/Docker mounts.
-
 - **Asset Management:**
 - **Polymorphic Ledger:** Real Estate, Vehicles, Financials, Art, Jewelry, etc.
 - **Smart Edit Forms:** High-visibility "Valuation" cards.
-
 - **Phase 5 Expansion:**
 - `PropertyStructure` (Sheds/Pools), `LocationPoint` (GPS Pins), `RecurringBill` (Taxes/Utilities).
-
 - **Contacts Hub:**
+- Renamed from "Details" to "Contacts" for clarity.
 - Relationship Tags and Professional Roles.
-
 - **Unified Timeline (Polished):**
 - **Split-View Layout:** Upcoming vs. History with collapsible headers.
 - **Dynamic Resizing:** "Upcoming" section shrinks to fit content (max 50%) when dual-view is active.
 - **Visual Consistency:** Asset-specific icons (e.g., 🏠 for House History) used in timeline events.
 - **Horizontal Cards:** High-density layout minimizing vertical scrolling.
 - Filters and Saved Views (LocalStorage).
-
 - **Durability:**
 - Backup (JSON/HTML) & Restore.
+- **Trust Profile (Phase 6):**
+- **New "Details" Page:** High-level trust configuration.
+- **Sensitivity Controls:** "Estimated Death Date" is hidden by default (toggleable).
+- **Review Schedule:** Configuration for annual reviews.
 
 ### ⏳ Roadmap / Pending
 
@@ -89,10 +90,10 @@ open-estate-dashboard/
 - [ ] UI for uploading PDFs/Images to specific assets.
 - [ ] Gallery view for receipts/titles.
 
-2. **Logic Engine:**
+2. **Logic Engine & Notifications:**
 
 - [ ] Automated Health Checks (e.g., "Warn if Asset has no Beneficiary").
-- [ ] Auto-generate Tasks based on data (e.g., "Pay Property Tax" based on Bill due date).
+- [ ] **Notification System:** Handle email/local alerts for Annual Reviews (as configured in Details).
 
 3. **Transition Protocol:**
 
@@ -103,10 +104,10 @@ open-estate-dashboard/
 - **Asset:**
 - `asset_type`, `value_estimated`, `attributes` (JSON).
 - **Relationships:** `appraisals`, `structures`, `location_points`, `bills`, `vendors`.
-
+- **TrustProfile (Singleton):**
+- `name`, `date_established`, `date_death_estimated`, `date_death_actual`, `review_frequency`, `next_review_date`.
 - **Person:**
 - `role` (Trustor, Beneficiary, Vendor, etc).
-
 - **Sub-Items:**
 - `PropertyStructure`, `LocationPoint`, `RecurringBill`.
 
@@ -122,6 +123,7 @@ open-estate-dashboard/
 # 6. Seed (Loads data from scripts/)
 
 
+
 ```
 
 **Manual Commands (Inside Container):**
@@ -135,8 +137,9 @@ Remove-Item instance/estate.db
 Remove-Item -Recurse migrations
 
 
+
 ```
 
 ---
 
-_Last Updated: Timeline Visual Polish (Icons & Split View)._
+_Last Updated: Phase 6 - Trust Details & Contacts Renaming._

@@ -21,13 +21,16 @@
             <a href="{{ url_for('main.dashboard') }}" class="nav-item {% if active_page == 'overview' %}active{% endif %}">
                 Overview
             </a>
+            <a href="{{ url_for('main.details_view') }}" class="nav-item {% if active_page == 'details' %}active{% endif %}">
+                Details
+            </a>
             <a href="{{ url_for('main.assets_view') }}" class="nav-item {% if active_page == 'assets' %}active{% endif %}">
-                Assets & Liabilities
+                Assets
             </a>
             <a href="{{ url_for('main.timeline_view') }}" class="nav-item {% if active_page == 'timeline' %}active{% endif %}">
                 Timeline
             </a>
-            <a href="{{ url_for('main.details_view') }}" class="nav-item {% if active_page == 'details' %}active{% endif %}">
+            <a href="{{ url_for('main.contacts_view') }}" class="nav-item {% if active_page == 'contacts' %}active{% endif %}">
                 Contacts
             </a>
             <a href="{{ url_for('main.faq_view') }}" class="nav-item {% if active_page == 'faq' %}active{% endif %}">

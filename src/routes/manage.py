@@ -2,10 +2,10 @@ import json
 from datetime import date, datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from src.extensions import db
-from src.models import Asset, Person, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor
+from src.models import Asset, Person, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor, TrustProfile
 from src.forms import (
     get_form_class, AppraisalForm, PersonForm, 
-    StructureForm, LocationPointForm, RecurringBillForm, AssetVendorForm
+    StructureForm, LocationPointForm, RecurringBillForm, AssetVendorForm, TrustProfileForm
 )
 from src.services.auth_service import login_required
 
@@ -261,12 +261,12 @@ def create_person():
         try:
             db.session.commit()
             flash(f'Contact {person.name} added successfully.', 'success')
-            return redirect(url_for('main.details_view'))
+            return redirect(url_for('main.contacts_view'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating contact: {str(e)}', 'error')
 
-    return render_template('manage_person.html', form=form, title="Add Contact", active_page='details')
+    return render_template('manage_person.html', form=form, title="Add Contact", active_page='contacts')
 
 @bp.route('/contact/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -293,12 +293,12 @@ def edit_person(id):
         try:
             db.session.commit()
             flash(f'Updated contact {person.name}.', 'success')
-            return redirect(url_for('main.details_view'))
+            return redirect(url_for('main.contacts_view'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating contact: {str(e)}', 'error')
 
-    return render_template('manage_person.html', form=form, title="Edit Contact", active_page='details')
+    return render_template('manage_person.html', form=form, title="Edit Contact", active_page='contacts')
 
 @bp.route('/contact/delete/<int:id>')
 @login_required
@@ -311,7 +311,7 @@ def delete_person(id):
     except Exception as e:
         db.session.rollback()
         flash('Error deleting contact. Check if they are linked to assets.', 'error')
-    return redirect(url_for('main.details_view'))
+    return redirect(url_for('main.contacts_view'))
 
 # --- PHASE 5: SUB-ITEMS (Structures, Pins, Bills, Vendors) ---
 
@@ -383,6 +383,27 @@ def delete_subitem(asset_id, subitem_type, item_id):
             flash('Item removed.', 'success')
     
     return redirect(url_for('main.asset_details', id=asset_id))
+
+# --- PHASE 6: TRUST PROFILE EDIT ---
+@bp.route('/trust/edit', methods=['GET', 'POST'])
+@login_required
+def edit_trust_profile():
+    profile = TrustProfile.query.first()
+    if not profile:
+        profile = TrustProfile(name="The Family Trust")
+        db.session.add(profile)
+        db.session.commit()
+        
+    form = TrustProfileForm(obj=profile)
+    
+    if form.validate_on_submit():
+        form.populate_obj(profile)
+        db.session.commit()
+        flash('Trust details updated.', 'success')
+        return redirect(url_for('main.details_view'))
+        
+    return render_template('manage_trust.html', form=form, title="Edit Trust Details", active_page='details')
+
 
 # --- HELPER ---
 def save_asset_from_form(asset, form):

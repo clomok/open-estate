@@ -1,10 +1,11 @@
 import json
 from datetime import date, datetime
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect, url_for
 from src.services.auth_service import login_required
 from src.services.timeline_service import get_timeline_events
-from src.models import Person, Asset, Milestone, Task, Appraisal
+from src.models import Person, Asset, Milestone, Task, Appraisal, TrustProfile
 from src.forms import AppraisalForm
+from src.extensions import db
 
 bp = Blueprint('main', __name__)
 
@@ -171,9 +172,10 @@ def timeline_view():
                            active_page='timeline',
                            current_filters=active_filters or [])
 
-@bp.route('/details')
+# --- NEW: CONTACTS (Formerly Details) ---
+@bp.route('/contacts')
 @login_required
-def details_view():
+def contacts_view():
     all_people = Person.query.order_by(Person.name).all()
     
     family_roles = ['Trustor', 'Trustee', 'Beneficiary', 'Executor']
@@ -196,10 +198,25 @@ def details_view():
         if role_code not in existing_roles:
             missing_pros.append({'role': role_code, 'label': label})
             
-    return render_template('details.html', 
+    return render_template('contacts.html', 
                            family=family, 
                            pros=pros, 
                            missing_pros=missing_pros,
+                           active_page='contacts')
+
+# --- NEW: DETAILS (High-Level Trust Info) ---
+@bp.route('/details')
+@login_required
+def details_view():
+    # Singleton Pattern: Get the first row or create default
+    profile = TrustProfile.query.first()
+    if not profile:
+        profile = TrustProfile(name="The Family Trust", date_established=date.today())
+        db.session.add(profile)
+        db.session.commit()
+    
+    return render_template('details.html', 
+                           profile=profile,
                            active_page='details')
 
 @bp.route('/faq')

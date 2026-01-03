@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="margin-bottom: 2rem;">Edit Trust Details</h1>
+
+    <div class="summary-card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.name.label }}</label>
+                {{ form.name(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.date_established.label }}</label>
+                {{ form.date_established(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+            </div>
+
+            <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #eee;">
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1rem; color: #b45309; margin-bottom: 1rem;">Annual Review Configuration</h3>
+                <div class="grid-2-form">
+                    <div>
+                        <label style="display: block; font-weight: bold; margin-bottom: 0.5rem; font-size: 0.9rem;">{{ form.review_frequency.label }}</label>
+                        {{ form.review_frequency(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: bold; margin-bottom: 0.5rem; font-size: 0.9rem;">{{ form.next_review_date.label }}</label>
+                        {{ form.next_review_date(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                    </div>
+                </div>
+            </div>
+
+            <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #eee;">
+
+            <div style="margin-bottom: 1.5rem; background: #f9fafb; padding: 1rem; border-radius: 6px;">
+                <h3 style="font-size: 1rem; color: #6b7280; margin-bottom: 1rem;">Planning Horizon (Optional)</h3>
+                
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: bold; margin-bottom: 0.25rem; font-size: 0.9rem;">{{ form.date_death_estimated.label }}</label>
+                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">{{ form.date_death_estimated.description }}</div>
+                    {{ form.date_death_estimated(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-weight: bold; margin-bottom: 0.25rem; font-size: 0.9rem; color: #991b1b;">{{ form.date_death_actual.label }}</label>
+                    <div style="font-size: 0.8rem; color: #991b1b; margin-bottom: 0.5rem;">{{ form.date_death_actual.description }}</div>
+                    {{ form.date_death_actual(style="width: 100%; padding: 0.5rem; border: 1px solid #fca5a5; border-radius: 4px;") }}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.notes.label }}</label>
+                {{ form.notes(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                <a href="{{ url_for('main.details_view') }}" style="color: #666; text-decoration: none;">Cancel</a>
+                {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .grid-2-form { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+</style>
+{% endblock %}

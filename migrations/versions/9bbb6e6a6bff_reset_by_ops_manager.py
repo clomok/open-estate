@@ -1,8 +1,8 @@
 """Reset by Ops Manager
 
-Revision ID: a65fb10c58ee
+Revision ID: 9bbb6e6a6bff
 Revises: 
-Create Date: 2026-01-02 21:18:45.091945
+Create Date: 2026-01-03 02:48:15.709037
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'a65fb10c58ee'
+revision = '9bbb6e6a6bff'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -33,6 +33,17 @@ def upgrade():
     sa.Column('email', sa.String(length=120), nullable=True),
     sa.Column('phone', sa.String(length=20), nullable=True),
     sa.Column('attributes', sa.JSON(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('trust_profile',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=200), nullable=True),
+    sa.Column('date_established', sa.Date(), nullable=True),
+    sa.Column('date_death_estimated', sa.Date(), nullable=True),
+    sa.Column('date_death_actual', sa.Date(), nullable=True),
+    sa.Column('review_frequency', sa.String(length=50), nullable=True),
+    sa.Column('next_review_date', sa.Date(), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('asset',
@@ -133,6 +144,7 @@ def downgrade():
     op.drop_table('asset_beneficiaries')
     op.drop_table('appraisal')
     op.drop_table('asset')
+    op.drop_table('trust_profile')
     op.drop_table('person')
     op.drop_table('milestone')
     # ### end Alembic commands ###
