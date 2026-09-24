@@ -11,6 +11,14 @@
 services:
   web:
     build: .
+    # The image builds its own non-root user (uid 999), but both mounts below
+    # are host directories owned by whoever runs the stack. On Linux a bind
+    # mount keeps the host's ownership, so a container running as 999 cannot
+    # create its own SQLite file — the app starts, serves /login, and dies the
+    # moment it touches the database. Run as the owning host user instead:
+    # still non-root, and every file written stays readable, editable and
+    # backup-able by the person who owns the directory.
+    user: "${PUID:-1000}:${PGID:-1000}"
     container_name: estate_${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}
     restart: unless-stopped
     # Loopback by default. A container that publishes 0.0.0.0 is reachable by
