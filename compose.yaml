@@ -11,7 +11,7 @@
 services:
   web:
     build: .
-    container_name: estate_${DATASET:?DATASET is not set - run via "make up DATASET=<name>" or pass --env-file datasets/<name>.env}
+    container_name: estate_${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}
     restart: unless-stopped
     ports:
       - "${PORT:-5000}:5000"
@@ -21,9 +21,9 @@ services:
       # Each dataset keeps its database in its own host directory. The path
       # inside the container is identical for every dataset, so DATABASE_URL
       # is the same everywhere and only this mount decides which estate loads.
-      - ./instance/${DATASET:?}:/app/instance
+      - ./instance/${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}:/app/instance
     env_file:
-      - datasets/${DATASET:?}.env
+      - datasets/${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
       interval: 30s
