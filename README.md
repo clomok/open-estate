@@ -18,7 +18,7 @@ This project was born out of a need for a simple, resilient system to organize f
 1.  **Simplicity First:** We avoid complex JavaScript frameworks. Server-side rendering ensures the app is fast, lightweight, and easy to maintain.
 2.  **Consent for Complexity:** Every feature must justify its existence. If it adds maintenance burden, it is rejected.
 3.  **Visual Clarity:** Differentiates "Technical Details" (for execution) from "Layman Summaries" (for decision making).
-4.  **Durability:** Data is portable. One-click backups provide both a machine-readable JSON file and a human-readable HTML summary.
+4.  **Durability:** Data is portable. One-click backups provide both a machine-readable JSON file and a human-readable HTML summary, and they carry the _whole_ database — `src/services/backup_schema.py` is the single list that export and restore both read, with a test that fails the build if a new table is ever left out of it.
 
 ## 🛠️ Tech Stack
 
@@ -42,36 +42,53 @@ This project was born out of a need for a simple, resilient system to organize f
     cd open-estate
     ```
 
-2.  **Configure Environment:**
+2.  **Create a dataset:**
+
+    Each estate runs as its own instance, defined by one file in `datasets/`.
+    See [`datasets/README.md`](datasets/README.md) for the full picture.
 
     ```bash
-    cp .env.example .env
-    # Edit .env and set a strong ADMIN_PASSWORD
+    make new DATASET=demo        # copies the template, creates instance/demo/
+    # Edit datasets/demo.env: set a unique PORT, SECRET_KEY and ADMIN_PASSWORD
     ```
 
 3.  **Run the App (Windows):**
     Use the included operations script:
 
     ```powershell
-    .\ops.ps1
+    .\ops.ps1 -Dataset demo
     # Select Option 1 (Update) to build and start the container
     ```
 
     **Run the App (Linux/Mac):**
 
     ```bash
-    docker-compose up -d --build
+    make up DATASET=demo
     ```
 
 4.  **Access:**
-    Open your browser to `http://localhost:5000` (or the port defined in your `.env`).
+    Open your browser to the `PORT` set in `datasets/demo.env` (5000 by default).
+    The sidebar shows which dataset you are looking at.
+
+> Upgrading an install from before datasets existed? Run `make adopt DATASET=<name>`
+> — the stack will refuse to start until the dataset file exists.
+
+## ✅ Tests
+
+No container needed — the suite runs against an in-memory database:
+
+```bash
+pip install -r requirements-dev.txt
+make test
+```
 
 ## 🗺️ Roadmap
 
 - [x] **Secure Infrastructure:** Non-root Docker container with Authentication.
 - [x] **Asset Management:** Add/Edit Assets, Liabilities, and Vehicles.
 - [x] **Dynamic Details:** Flexible "Attribute" system for custom data (VIN, Safe Combos, etc).
-- [x] **Durability Layer:** JSON/HTML Backup & Restore system.
+- [x] **Durability Layer:** JSON/HTML Backup & Restore system, covering every table.
+- [x] **Multiple Estates:** One container per dataset — separate database, port, password and badge.
 - [ ] **Logic Engine:** Automated health checks (e.g., "Warn if Asset has no Beneficiary").
 - [ ] **Document Storage:** Secure local upload for PDF trust documents.
 - [ ] **Transition Protocol:** "In Case of Emergency" view for Trustees.

@@ -55,8 +55,29 @@ body {
     font-size: 1.25rem;
     font-weight: bold;
     color: white;
-    margin-bottom: 2rem;
+    margin-bottom: 0.75rem;
     letter-spacing: 0.05em;
+}
+
+/* Which dataset is loaded. Muted for demo/dev, warm for a protected (real)
+   estate, so the tab you are about to edit identifies itself at a glance. */
+.dataset-badge {
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.dataset-badge-live {
+    border-color: #f59e0b;
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
 }
 
 .nav-item {

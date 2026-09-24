@@ -8,6 +8,11 @@ venv/
 # Environment
 .env
 
+# Dataset environments - one per running instance. These hold passwords, keys
+# and the identity of somebody's real estate, so only the template is tracked.
+datasets/*.env
+!datasets/*.env.example
+
 # Database & Instance Folder
 instance/
 *.db

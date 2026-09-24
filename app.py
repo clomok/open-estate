@@ -16,6 +16,16 @@ def create_app(config_class=Config):
     # Import models so Alembic can detect them
     from src import models
 
+    # --- TEMPLATE GLOBALS ---
+    @app.context_processor
+    def inject_dataset():
+        """Which estate is on screen. Shown on every page so demo data and real
+        data are never one unlabelled tab apart."""
+        return {
+            'dataset_label': app.config.get('DATASET_LABEL', ''),
+            'dataset_protected': app.config.get('DATASET_PROTECTED', False),
+        }
+
     # --- CUSTOM FILTERS ---
     @app.template_filter('currency')
     def currency_filter(value):

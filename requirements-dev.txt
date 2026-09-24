@@ -1,0 +1,4 @@
+# Test-only dependencies. Deliberately kept out of requirements.txt so the
+# runtime image stays as small as it is.
+-r requirements.txt
+pytest==8.0.0

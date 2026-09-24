@@ -16,7 +16,13 @@
 
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-title">The Trust</div>
-        
+
+        {% if dataset_label %}
+        <div class="dataset-badge {% if dataset_protected %}dataset-badge-live{% endif %}">
+            {{ dataset_label }}
+        </div>
+        {% endif %}
+
         <nav>
             <a href="{{ url_for('main.dashboard') }}" class="nav-item {% if active_page == 'overview' %}active{% endif %}">
                 Overview

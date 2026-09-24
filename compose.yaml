@@ -1,17 +1,29 @@
+# One container per dataset. Everything that differs between datasets lives in
+# datasets/<name>.env, which is both the file Compose interpolates and the file
+# the container reads its environment from:
+#
+#   docker compose --env-file datasets/demo.env up -d
+#
+# or, from the Makefile:  make up DATASET=demo
+#
+# DATASET is deliberately required rather than defaulted: a typo should stop the
+# stack, not quietly start the wrong estate.
 services:
   web:
     build: .
-    container_name: estate_dashboard
+    container_name: estate_${DATASET:?DATASET is not set - run via "make up DATASET=<name>" or pass --env-file datasets/<name>.env}
     restart: unless-stopped
     ports:
       - "${PORT:-5000}:5000"
     volumes:
       # Mount the current directory (.) to /app inside the container
       - .:/app
-      # Keep the explicit volume for the database to ensure it persists correctly
-      - ./instance:/app/instance
+      # Each dataset keeps its database in its own host directory. The path
+      # inside the container is identical for every dataset, so DATABASE_URL
+      # is the same everywhere and only this mount decides which estate loads.
+      - ./instance/${DATASET:?}:/app/instance
     env_file:
-      - .env
+      - datasets/${DATASET:?}.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
       interval: 30s
