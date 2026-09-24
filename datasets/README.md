@@ -12,6 +12,7 @@ Each dataset is one file here, `datasets/<name>.env`, which decides:
 | --- | --- |
 | `DATASET` | Container name, Compose project, and the host directory the database lives in (`instance/<DATASET>/`) |
 | `PORT` | Which port this estate answers on, so several run side by side |
+| `BIND_ADDR` | Which address that port is published on. Defaults to `127.0.0.1`, so a fresh instance is reachable from its own host and nowhere else until something in front of it is asked to expose it |
 | `SECRET_KEY`, `ADMIN_PASSWORD` | Its own login — one estate's password opens no other |
 | `DATASET_LABEL` | The badge in the sidebar, so the tab identifies itself before you edit it |
 | `DATASET_PROTECTED` | `1` on real data: `wipe` and `seed` refuse outright |
