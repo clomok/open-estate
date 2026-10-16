@@ -273,4 +273,6 @@ def details_view():
 @bp.route('/faq')
 @login_required
 def faq_view():
-    return render_template('faq.html', active_page='faq')
+    """The questions-and-answers list lives at the foot of the Playbooks
+    page now; the old address still lands there."""
+    return redirect(url_for('main.playbooks_view') + '#faq')

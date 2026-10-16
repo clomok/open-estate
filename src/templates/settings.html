@@ -1,73 +1,60 @@
 {% extends 'base.html' %}
 
+{% block title %}Settings · {{ estate.label }}{% endblock %}
 {% block content %}
-<h2>Settings · {{ estate.label }}</h2>
-<p style="color: #666; font-size: 0.9rem; margin-top: -0.5rem;">
-    Backup and restore act on this estate only. Each estate is its own database file;
-    switch estates from the sidebar.
-</p>
-
-<div class="grid">
-    <div class="card">
-        <h3>Backup Data</h3>
-        <p style="color: #666; font-size: 0.9rem;">
-            Download a ZIP file containing a machine-readable JSON backup and a human-readable HTML summary.
-        </p>
-        <a href="{{ url_for('settings.download_backup') }}" 
-           style="display: inline-block; background: #2563eb; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px; margin-top: 1rem;">
-           Download Backup (.zip)
-        </a>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">{{ estate.label }}</span>
+            <h1>Settings</h1>
+            <div class="page-sub">Backup and restore act on this estate only. Each estate is its own database file; switch estates from the sidebar.</div>
+        </div>
     </div>
 
-    {% if estate.protected %}
-    <div class="card" style="border-left: 4px solid #f59e0b;">
-        <h3 style="color: #b45309;">Protected: real data</h3>
-        <p style="color: #666; font-size: 0.9rem;">
-            This estate cannot be seeded, wiped or restored over, from this page or from
-            the command line. To lift the guard, set <code>"protected": false</code> for
-            <code>{{ estate.slug }}</code> in <code>instance/estates.json</code> by hand,
-            after taking a backup.
-        </p>
-    </div>
-    {% else %}
-    <div class="card" style="border-left: 4px solid #f59e0b;">
-        <h3 style="color: #b45309;">Restore Data</h3>
-        <p style="color: #666; font-size: 0.9rem;">
-            <strong>Warning:</strong> This will overwrite all current data with the data from the backup file.
-        </p>
-        
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div style="background: #fee2e2; color: #991b1b; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px;">
-                    {{ messages[0] }}
-                </div>
-            {% endif %}
-        {% endwith %}
+    <div class="settings-grid">
+        <div class="card card-accent-royal">
+            <h3>Backup</h3>
+            <p class="summary-note">Download a ZIP holding a machine-readable JSON backup and a human-readable HTML summary.</p>
+            <a href="{{ url_for('settings.download_backup') }}" class="btn-primary">Download backup (.zip)</a>
+        </div>
 
-        <form method="post" action="{{ url_for('settings.upload_backup') }}" enctype="multipart/form-data" style="margin-top: 1rem;">
-            <input type="file" name="backup_file" accept=".zip,.json" required style="margin-bottom: 0.5rem;">
-            <br>
-            <button type="submit" 
-                    style="background: #f59e0b; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
-                Overwrite & Restore
-            </button>
-        </form>
-    </div>
+        {% if estate.protected %}
+        <div class="card card-accent-gold">
+            <h3 style="color: var(--bronze);">Protected: real data</h3>
+            <p class="summary-note">
+                This estate cannot be seeded, wiped or restored over, from this page or from
+                the command line. To lift the guard, set <code>"protected": false</code> for
+                <code>{{ estate.slug }}</code> in <code>instance/estates.json</code> by hand,
+                after taking a backup.
+            </p>
+        </div>
+        {% else %}
+        <div class="card card-accent-gold">
+            <h3 style="color: var(--bronze);">Restore</h3>
+            <p class="summary-note"><strong>Warning:</strong> this overwrites all current data in this estate with the backup file.</p>
 
-    <div class="card">
-        <h3>Mark as real data</h3>
-        <p style="color: #666; font-size: 0.9rem;">
-            Once this estate holds a real trust, protect it: seed, wipe and restore will
-            refuse it. There is no button that undoes this.
-        </p>
-        <form method="post" action="{{ url_for('settings.protect') }}" style="margin-top: 1rem;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" onclick="return confirm('Protect this estate? Only a hand edit of estates.json undoes it.')"
-                    style="background: #374151; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
-                Protect this estate
-            </button>
-        </form>
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="notice notice-oxblood">{{ messages[0] }}</div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="post" action="{{ url_for('settings.upload_backup') }}" enctype="multipart/form-data">
+                <input type="file" name="backup_file" accept=".zip,.json" required style="margin-bottom: 0.75rem;">
+                <br>
+                <button type="submit" class="btn-warn" style="background: var(--bronze); border-color: var(--bronze);">Overwrite &amp; restore</button>
+            </form>
+        </div>
+
+        <div class="card card-accent-oxblood">
+            <h3>Mark as real data</h3>
+            <p class="summary-note">Once this estate holds a real trust, protect it: seed, wipe and restore will refuse it. There is no button that undoes this.</p>
+            <form method="post" action="{{ url_for('settings.protect') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn" onclick="return confirm('Protect this estate? Only a hand edit of estates.json undoes it.')">Protect this estate</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 {% endblock %}

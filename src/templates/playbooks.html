@@ -1,30 +1,59 @@
 {% extends 'base.html' %}
 
+{% block title %}Playbooks · Open Estate{% endblock %}
 {% block content %}
-<div class="oe-form-page" style="max-width: 760px;">
-    <h1>Playbooks</h1>
-    <p class="oe-note">A playbook is a list of steps counted in days from a date. Running it puts one event per step on the timeline, assigned by role. The death-of-trustor playbook is offered when the trust's date of passing is filled in.</p>
+<div class="page-narrow">
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">When the time comes</span>
+            <h1>Playbooks</h1>
+            <div class="page-sub">A playbook is a list of steps counted in days from a date. Running it puts one event per step on the timeline, assigned by role.</div>
+        </div>
+        <a class="btn-primary" href="{{ url_for('manage.manage_playbook') }}">+ New playbook</a>
+    </div>
 
     {% for pb in playbooks %}
     <a class="pb-card summary-card" href="{{ url_for('main.playbook_view', id=pb.id) }}">
         <div class="pb-name">{{ pb.name }}</div>
         <div class="pb-meta">
             {{ pb.steps|length }} steps
-            {% if pb.trigger == 'death_of_trustor' %} · offered at a date of passing{% endif %}
+            {% if pb.trigger == 'death_of_trustor' %} · offered when a date of passing is set{% endif %}
             {% if runs[pb.id] %} · run on {{ runs[pb.id]|map('first')|join(', ') }}{% endif %}
         </div>
     </a>
     {% else %}
-    <p class="oe-note">No playbooks yet.</p>
+    <p class="empty">No playbooks yet.</p>
     {% endfor %}
 
-    <div class="oe-actions" style="justify-content: flex-start; gap: 1rem;">
-        <a class="btn-primary" href="{{ url_for('manage.manage_playbook') }}">+ New playbook</a>
-        <form method="POST" action="{{ url_for('manage.install_default_playbook') }}" style="margin: 0;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="ev-btn" type="submit">Add a fresh copy of the default</button>
-        </form>
+    <form method="POST" action="{{ url_for('manage.install_default_playbook') }}" class="row" style="margin-top: 0.5rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm" type="submit">Add a fresh copy of the default playbook</button>
+    </form>
+
+    <h2 class="section-title" id="faq" style="margin-top: 2.5rem;">
+        <span>Questions people ask</span>
+    </h2>
+    <p class="muted small">The answers a family reaches for first. Where the documents are, who to call, what to do on day one.</p>
+
+    <div class="faq-list">
+        <div class="summary-card faq-item">
+            <h3>Where are the physical documents?</h3>
+            <p>The original trust documents are in the fireproof safe in the master closet. The combination is recorded under the trust's notes on <a href="{{ url_for('main.details_view') }}">The Trust</a> page.</p>
+        </div>
+        <div class="summary-card faq-item">
+            <h3>Who is the primary contact at the bank?</h3>
+            <p>The branch manager at the main local branch. They should have a copy of the Certificate of Trust on file. Bank accounts and their people are under <a href="{{ url_for('main.holdings_view') }}">Holdings</a>.</p>
+        </div>
+        <div class="summary-card faq-item">
+            <h3>What do we do immediately upon passing?</h3>
+            <ol>
+                <li>Record the date of passing on <a href="{{ url_for('manage.edit_trust_profile') }}">The Trust</a>; the transition playbook is offered from there.</li>
+                <li>Order ten certified copies of the death certificate.</li>
+                <li>Call the estate attorney and the financial advisor, both under <a href="{{ url_for('main.contacts_view') }}">Contacts</a>.</li>
+            </ol>
+        </div>
     </div>
+
     <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
 </div>
 {% endblock %}

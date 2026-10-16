@@ -1,14 +1,17 @@
 {% extends 'base.html' %}
 
+{% block title %}{{ playbook.name }} · Open Estate{% endblock %}
 {% block content %}
-<div class="oe-form-page" style="max-width: 760px;">
+<div class="page-narrow">
     <a class="oe-back" href="{{ url_for('main.playbooks_view') }}">← Playbooks</a>
-    <div class="now-head">
-        <h1>{{ playbook.name }}</h1>
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Playbook · {{ playbook.steps|length }} steps</span>
+            <h1>{{ playbook.name }}</h1>
+            {% if playbook.description %}<div class="page-sub">{{ playbook.description }}</div>{% endif %}
+        </div>
         <a class="btn-primary" href="{{ url_for('manage.run_playbook', id=playbook.id) }}">Run…</a>
     </div>
-    {% if playbook.description %}<p class="oe-note">{{ playbook.description }}</p>{% endif %}
-    <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
     {% if runs %}
     <p class="oe-note">Already run on: {% for d, n in runs %}<a href="{{ url_for('main.timeline_view', phase='transition') }}">{{ d }}</a> ({{ n }} events){% if not loop.last %}, {% endif %}{% endfor %}</p>
     {% endif %}
@@ -32,14 +35,15 @@
         </div>
     {% endfor %}
 
-    <div class="oe-actions" style="justify-content: flex-start; gap: 1rem; flex-wrap: wrap;">
+    <div class="oe-actions start">
         <a class="btn-primary" href="{{ url_for('manage.manage_step', id=playbook.id) }}">+ Add a step</a>
-        <a class="ev-btn" href="{{ url_for('manage.manage_playbook', id=playbook.id) }}">Rename / describe</a>
-        <form method="POST" action="{{ url_for('manage.delete_playbook', id=playbook.id) }}" style="margin: 0;"
+        <a class="btn" href="{{ url_for('manage.manage_playbook', id=playbook.id) }}">Rename / describe</a>
+        <form method="POST" action="{{ url_for('manage.delete_playbook', id=playbook.id) }}" style="margin: 0 0 0 auto;"
               onsubmit="return confirm('Delete this playbook? Events it already created stay on the timeline.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="ev-btn" style="color: #b91c1c;" type="submit">Delete playbook</button>
+            <button class="btn-danger-text" type="submit">Delete playbook</button>
         </form>
     </div>
+    <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
 </div>
 {% endblock %}

@@ -1,40 +1,32 @@
 {% extends 'base.html' %}
 
+{% block title %}Add an item · Open Estate{% endblock %}
 {% block content %}
-<div style="max-width: 900px; margin: 0 auto;">
-    <h1 style="text-align: center; margin-bottom: 0.5rem;">What are you adding?</h1>
-    <p style="text-align: center; color: #666; margin-bottom: 2rem;">
-        Something the estate has, something it owes, or a stake it holds in something else.
-        Nothing fits? Every column has <strong>Custom</strong>, where you name the fields.
-    </p>
+<div class="page" style="max-width: 900px;">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+        <span class="eyebrow">Holdings</span>
+        <h1 style="margin-top: 0.3rem;">What are you adding?</h1>
+        <p class="muted" style="max-width: 36rem; margin: 0.5rem auto 0;">
+            Something the estate has, something it owes, or a stake it holds in something else.
+            Nothing fits? Every column has <strong>Custom</strong>, where you name the fields.
+        </p>
+    </div>
 
     {% for side, meta, types in sides %}
-    <h2 style="font-size: 1.1rem; color: #374151; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.4rem; margin-top: 2rem;">
-        {{ meta.icon }} {{ meta.label }}
-    </h2>
+    <h2 class="section-title is-{{ side }}"><span>{{ meta.icon }} {{ meta.label }}</span></h2>
     <div class="grid-3">
         {% for t in types %}
         <a href="{{ url_for('manage.create_holding', side=side, type_code=t.code) }}"
-           class="summary-card type-card"
-           style="text-decoration: none; color: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; text-align: center; {% if t.custom %}border-style: dashed;{% endif %}">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">{{ t.icon }}</div>
-            <div style="font-weight: bold; color: var(--primary);">{{ t.label }}</div>
+           class="summary-card type-card {% if t.custom %}is-custom{% endif %}">
+            <div class="type-glyph">{{ t.icon }}</div>
+            <div class="type-name">{{ t.label }}</div>
         </a>
         {% endfor %}
     </div>
     {% endfor %}
 
-    <div style="text-align: center; margin-top: 2rem;">
-        <a href="{{ url_for('main.holdings_view') }}" style="color: #666;">Cancel</a>
+    <div style="text-align: center; margin-top: 1rem;">
+        <a href="{{ url_for('main.holdings_view') }}" class="link-quiet">Cancel</a>
     </div>
 </div>
-
-<style>
-    .type-card { transition: transform 0.2s; }
-    .type-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border-color: var(--primary);
-    }
-</style>
 {% endblock %}

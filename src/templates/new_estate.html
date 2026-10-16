@@ -1,30 +1,40 @@
 {% extends 'base.html' %}
 
+{% block title %}New estate · Open Estate{% endblock %}
 {% block content %}
-<h2>New estate</h2>
+<div class="page-form">
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">A binder of its own</span>
+            <h1>New estate</h1>
+        </div>
+    </div>
 
-<div class="card" style="max-width: 32rem;">
-    <p style="color: #666; font-size: 0.9rem;">
-        An estate is a whole binder of its own: its own trust, holdings, contacts,
-        timeline and backups, in its own database file. Nothing is shared between
-        estates, so a new one starts empty.
-    </p>
-    <form method="post" action="{{ url_for('estates.new') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <p>
-            <label for="label"><strong>Name shown in the sidebar</strong></label><br>
-            <input id="label" name="label" value="{{ label }}" required maxlength="60"
-                   placeholder="The Wheeler Trust" style="width: 100%;">
+    <div class="card">
+        <p class="summary-note">
+            An estate is a whole binder of its own: its own trust, holdings, contacts,
+            timeline and backups, in its own database file. Nothing is shared between
+            estates, so a new one starts empty.
         </p>
-        <p>
-            <label for="slug"><strong>Short name</strong></label><br>
-            <input id="slug" name="slug" value="{{ slug }}" required maxlength="40"
-                   pattern="[a-z0-9][a-z0-9-]*" placeholder="wheeler" style="width: 100%;">
-            <small style="color: #666;">Lowercase letters, digits and dashes. It becomes the
-                folder name and the <code>/e/&lt;name&gt;/</code> part of every address, and
-                cannot be changed later.</small>
-        </p>
-        <button type="submit" class="btn-primary">Create estate</button>
-    </form>
+        <form method="post" action="{{ url_for('estates.new') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="oe-field">
+                <label for="label">Name shown in the sidebar</label>
+                <input id="label" name="label" value="{{ label }}" required maxlength="60" placeholder="The Wheeler Trust">
+            </div>
+            <div class="oe-field">
+                <label for="slug">Short name</label>
+                <input id="slug" name="slug" value="{{ slug }}" required maxlength="40"
+                       pattern="[a-z0-9][a-z0-9-]*" placeholder="wheeler">
+                <div class="oe-help">Lowercase letters, digits and dashes. It becomes the
+                    folder name and the <code>/e/&lt;name&gt;/</code> part of every address, and
+                    cannot be changed later.</div>
+            </div>
+            <div class="oe-actions">
+                <a href="{{ url_for('estates.home') }}">Cancel</a>
+                <button type="submit" class="btn-primary">Create estate</button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

@@ -31,7 +31,7 @@ def ok(response):
 
 
 def test_every_page_renders(client, estate):
-    pages = ["/", "/overview", "/holdings", "/timeline", "/contacts", "/details", "/faq", "/settings/",
+    pages = ["/", "/overview", "/holdings", "/timeline", "/contacts", "/details", "/settings/",
              "/playbooks", "/playbook/1", "/manage/event/new", "/manage/event/30/edit",
              "/manage/event/new?holding_id=10&kind=deadline&date=2026-12-01",
              "/manage/playbook/new", "/manage/playbook/1/edit", "/manage/playbook/1/run",
@@ -52,6 +52,12 @@ def test_every_page_renders(client, estate):
 def test_every_registered_type_has_a_working_form(client, estate):
     for side, code in REGISTRY:
         ok(client.get(f"/e/test/manage/holding/new/{side}/{code}"))
+
+
+def test_faq_lands_on_the_playbooks_page(client, estate):
+    r = client.get("/e/test/faq")
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/playbooks#faq")
 
 
 def test_old_asset_urls_still_land(client, estate):

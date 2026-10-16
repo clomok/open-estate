@@ -1,19 +1,23 @@
 {% extends 'base.html' %}
 
 {% from '_rows.html' import row_card, filter_bar %}
+{% block title %}Timeline · Open Estate{% endblock %}
 {% block content %}
 {% set here = request.full_path.rstrip('?') %}
 <div class="timeline-wrapper">
 
-    <div style="flex-shrink: 0; margin-bottom: 1rem;">
-        <div class="now-head">
-            <h1 style="margin: 0;">Timeline</h1>
+    <div class="timeline-top">
+        <div class="page-head">
+            <div>
+                <span class="eyebrow">Every event, past and ahead</span>
+                <h1>Timeline</h1>
+            </div>
             <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
         </div>
 
         <div class="saved-views">
-            <span class="saved-views-label">Saved views:</span>
-            <div id="savedViewsList" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+            <span class="saved-views-label">Saved views</span>
+            <div id="savedViewsList" class="saved-views-list"></div>
             <button onclick="saveCurrentView()" class="saved-views-save">+ Save current</button>
         </div>
 
@@ -23,12 +27,12 @@
     <div class="timeline-split-view">
 
         <div id="section-upcoming" class="timeline-column expanded reverse-layout">
-            <div class="timeline-header header-green" onclick="toggleSection('upcoming')">
-                <h2 style="margin: 0; display: flex; align-items: center; color: white;">
+            <div class="timeline-header header-royal" onclick="toggleSection('upcoming')">
+                <h2>
                     Upcoming &amp; Active
-                    <span class="toggle-icon" id="icon-upcoming" style="color: rgba(255,255,255,0.8); margin-left: 0.5rem;">▲</span>
+                    <span class="toggle-icon" id="icon-upcoming">▲</span>
                 </h2>
-                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ upcoming|length + undated|length }} open</span>
+                <span class="tl-count">{{ upcoming|length + undated|length }} open</span>
             </div>
             <div class="timeline-scroll-area">
                 {% for r in upcoming %}{{ row_card(r, today, here) }}{% endfor %}
@@ -39,22 +43,22 @@
                     <div class="tl-subhead">No date · needs attention</div>
                 {% endif %}
                 {% if not upcoming and not undated %}
-                    <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">Nothing open matches these filters.</p>
+                    <p class="empty" style="padding: 1rem; text-align: center;">Nothing open matches these filters.</p>
                 {% endif %}
             </div>
         </div>
 
         <div id="section-history" class="timeline-column expanded">
-            <div class="timeline-header header-gray" onclick="toggleSection('history')">
-                <h2 style="margin: 0; display: flex; align-items: center; color: white;">
+            <div class="timeline-header header-stone" onclick="toggleSection('history')">
+                <h2>
                     History &amp; Logs
-                    <span class="toggle-icon" id="icon-history" style="color: rgba(255,255,255,0.8); margin-left: 0.5rem;">▼</span>
+                    <span class="toggle-icon" id="icon-history">▼</span>
                 </h2>
-                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ history|length }} entries</span>
+                <span class="tl-count">{{ history|length }} entries</span>
             </div>
             <div class="timeline-scroll-area">
                 {% for r in history %}{{ row_card(r, today, here, actions=r.kind not in ('valuation', 'acquisition', 'maintenance')) }}{% else %}
-                    <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">No history found.</p>
+                    <p class="empty" style="padding: 1rem; text-align: center;">No history found.</p>
                 {% endfor %}
             </div>
         </div>
@@ -63,16 +67,12 @@
 </div>
 
 <script>
-    // New function to handle split-view logic
     function updateLayoutState() {
         const upcoming = document.getElementById('section-upcoming');
         const history = document.getElementById('section-history');
         const wrapper = document.querySelector('.timeline-split-view');
-        
         const isUpcomingOpen = upcoming.classList.contains('expanded');
         const isHistoryOpen = history.classList.contains('expanded');
-
-        // Toggle dual-view class on wrapper
         if (isUpcomingOpen && isHistoryOpen) {
             wrapper.classList.add('dual-view');
         } else {
@@ -88,62 +88,41 @@
 
         const target = targetName === 'upcoming' ? upcomingSec : historySec;
         const targetIcon = targetName === 'upcoming' ? iconUpcoming : iconHistory;
-
-        // Determine specific icons
         const expandedIcon = targetName === 'upcoming' ? '▲' : '▼';
         const collapsedIcon = '◀';
 
-        // Helper to update state and classes
         const setState = (el, icon, isCollapsed) => {
             if (isCollapsed) {
                 el.classList.remove('expanded');
                 el.classList.add('collapsed');
-                icon.innerHTML = collapsedIcon; 
-                
-                // If collapsing Upcoming, remove reverse-layout
-                if(el.id === 'section-upcoming') {
-                    el.classList.remove('reverse-layout');
-                }
+                icon.innerHTML = collapsedIcon;
+                if (el.id === 'section-upcoming') el.classList.remove('reverse-layout');
             } else {
                 el.classList.remove('collapsed');
                 el.classList.add('expanded');
-                icon.innerHTML = expandedIcon; 
-                
-                // If expanding Upcoming, add reverse-layout
-                if(el.id === 'section-upcoming') {
-                    el.classList.add('reverse-layout');
-                }
+                icon.innerHTML = expandedIcon;
+                if (el.id === 'section-upcoming') el.classList.add('reverse-layout');
             }
         };
 
-        if (target.classList.contains('collapsed')) {
-            // User is clicking a hidden section -> Expand it
-            setState(target, targetIcon, false);
-        } else {
-            // User is clicking an open section -> Hide it
-            setState(target, targetIcon, true);
-        }
-        
-        // Update global layout class
+        setState(target, targetIcon, !target.classList.contains('collapsed'));
         updateLayoutState();
     }
-    
-    // Initialize layout state on load
+
     document.addEventListener('DOMContentLoaded', updateLayoutState);
 
-    // --- Saved Views Logic ---
+    // --- Saved views (localStorage) ---
     function saveCurrentView() {
         const name = prompt("Name this view:");
         if (!name) return;
-        const currentSearch = window.location.search;
         const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
-        views[name] = currentSearch;
+        views[name] = window.location.search;
         localStorage.setItem('estate_timeline_views', JSON.stringify(views));
         renderSavedViews();
     }
 
     function deleteView(name) {
-        if(!confirm('Delete "' + name + '"?')) return;
+        if (!confirm('Delete "' + name + '"?')) return;
         const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
         delete views[name];
         localStorage.setItem('estate_timeline_views', JSON.stringify(views));
@@ -153,7 +132,7 @@
     function renderSavedViews() {
         const container = document.getElementById('savedViewsList');
         const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
-        let html = `<a href="{{ url_for('main.timeline_view') }}" class="saved-view-tag">View All</a>`;
+        let html = `<a href="{{ url_for('main.timeline_view') }}" class="saved-view-tag">View all</a>`;
         for (const [name, search] of Object.entries(views)) {
             html += `
                 <span class="saved-view-group">

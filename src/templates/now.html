@@ -1,13 +1,15 @@
 {% extends 'base.html' %}
 {% from '_rows.html' import row_card, filter_bar %}
 
+{% block title %}Now · {{ root.name }}{% endblock %}
 {% block content %}
 {% set here = request.full_path.rstrip('?') %}
 <div class="now-page">
-    <div class="now-head">
+    <div class="page-head">
         <div>
+            <span class="eyebrow">{{ today.strftime('%A, %B') }} {{ today.day }}</span>
             <h1>Now</h1>
-            <div class="now-sub">{{ today.strftime('%A, %B') }} {{ today.day }} · {{ root.name }}</div>
+            <div class="page-sub">What {{ root.name }} needs from you.</div>
         </div>
         <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
     </div>

@@ -1,10 +1,16 @@
 {% extends 'base.html' %}
 {% from '_form.html' import field %}
 
+{% block title %}Run {{ playbook.name }} · Open Estate{% endblock %}
 {% block content %}
-<div class="oe-form-page" style="max-width: 760px;">
+<div class="page-narrow">
     <a class="oe-back" href="{{ url_for('main.playbook_view', id=playbook.id) }}">← {{ playbook.name }}</a>
-    <h1>Run “{{ playbook.name }}”</h1>
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Playbook</span>
+            <h1>Run “{{ playbook.name }}”</h1>
+        </div>
+    </div>
     {% if offered %}
     <div class="now-banner">The trust now has a date of passing. This playbook can put the successor trustee's first year on the timeline, counted from that date. Check the date, then create the events — or come back to it later from Playbooks.</div>
     {% endif %}

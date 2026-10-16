@@ -1,84 +1,71 @@
 {% extends 'base.html' %}
 
+{% block title %}Holdings · {{ root.name }}{% endblock %}
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-    <h1 style="margin: 0;">Holdings</h1>
-    <a href="{{ url_for('manage.select_type') }}"
-       style="background: var(--primary); color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; display: inline-block;">
-        + Add Item
-    </a>
-</div>
-<p style="color: #666; margin-top: 0; margin-bottom: 2rem;">
-    Everything {{ root.name }} has, owes, or holds a stake in.
-    Net worth: <strong>{{ totals.net | currency }}</strong> (assets {{ totals.asset | currency }} − liabilities {{ totals.liability | currency }}).
-</p>
-
-{% set side_colors = {'asset': ('#374151', '#e5e7eb', 'var(--primary)'), 'liability': ('#b45309', '#fcd34d', '#b45309'), 'equity': ('#6d28d9', '#ddd6fe', '#6d28d9')} %}
-
-{% for side in ['asset', 'liability', 'equity'] %}
-{% set meta = side_meta[side] %}
-{% set c = side_colors[side] %}
-<h2 style="margin-bottom: 1rem; font-size: 1.25rem; color: {{ c[0] }}; border-bottom: 2px solid {{ c[1] }}; padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
-    <span>{{ meta.label }}</span>
-    <span style="font-weight: normal;">{{ totals[side] | currency }}</span>
-</h2>
-
-{% if by_side[side] %}
-<div class="asset-grid" style="margin-bottom: 2.5rem;">
-    {% for h in by_side[side] %}
-    <div class="asset-card" {% if side == 'liability' %}style="border-left: 4px solid #ef4444;"{% elif side == 'equity' %}style="border-left: 4px solid #8b5cf6;"{% endif %}>
-        <div class="action-menu">
-            <button class="menu-btn" onclick="toggleDropdown(event, 'menu-{{ h.id }}')">&#8942;</button>
-            <div id="menu-{{ h.id }}" class="menu-dropdown">
-                <a href="{{ url_for('main.holding_details', id=h.id) }}" class="menu-item">View Details</a>
-                <a href="{{ url_for('manage.edit_holding', id=h.id) }}" class="menu-item">Edit</a>
-                <a href="{{ url_for('manage.delete_holding', id=h.id) }}" class="menu-item danger"
-                   onclick="return confirm('Delete {{ h.name|e }}? Its valuations, bills and shares go with it.');">Delete</a>
+<div class="page">
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">{{ root.name }}</span>
+            <h1>Holdings</h1>
+            <div class="page-sub">
+                Everything the trust has, owes, or holds a stake in.
+                Net worth <strong class="figure">{{ totals.net | currency }}</strong>
+                <span class="muted">(assets {{ totals.asset | currency }} − liabilities {{ totals.liability | currency }})</span>
             </div>
         </div>
+        <a href="{{ url_for('manage.select_type') }}" class="btn-primary">+ Add item</a>
+    </div>
 
-        <div style="padding-right: 2rem;">
-            <div style="font-size: 0.8rem; color: {{ c[0] }}; text-transform: uppercase; margin-bottom: 0.25rem;">
-                {{ h.type_label }}
+    {% for side in ['asset', 'liability', 'equity'] %}
+    {% set meta = side_meta[side] %}
+    <h2 class="section-title is-{{ side }}">
+        <span>{{ meta.label }}</span>
+        <span class="figure">{{ totals[side] | currency }}</span>
+    </h2>
+
+    {% if by_side[side] %}
+    <div class="asset-grid">
+        {% for h in by_side[side] %}
+        <div class="asset-card side-{{ side }}">
+            <div class="action-menu">
+                <button class="menu-btn" onclick="toggleDropdown(event, 'menu-{{ h.id }}')" aria-label="More">&#8942;</button>
+                <div id="menu-{{ h.id }}" class="menu-dropdown">
+                    <a href="{{ url_for('main.holding_details', id=h.id) }}" class="menu-item">View details</a>
+                    <a href="{{ url_for('manage.edit_holding', id=h.id) }}" class="menu-item">Edit</a>
+                    <a href="{{ url_for('manage.delete_holding', id=h.id) }}" class="menu-item danger"
+                       onclick="return confirm('Delete {{ h.name|e }}? Its valuations, bills and shares go with it.');">Delete</a>
+                </div>
             </div>
-            <a href="{{ url_for('main.holding_details', id=h.id) }}" style="text-decoration: none; color: inherit;">
-                <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: {{ c[2] }};">{{ h.name }}</h3>
-            </a>
-            <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; {% if side == 'liability' %}color: #ef4444;{% endif %}">
+
+            <span class="eyebrow asset-type">{{ h.type_label }}</span>
+            <h3 class="asset-name"><a href="{{ url_for('main.holding_details', id=h.id) }}">{{ h.name }}</a></h3>
+            <div class="asset-value">
                 {{ h.value_cents | currency }}
-                {% if side == 'equity' and h.ownership_pct is not none %}<span style="font-size: 0.9rem; color: #6b7280; font-weight: normal;">· {{ '%g' % h.ownership_pct }}%</span>{% endif %}
+                {% if side == 'equity' and h.ownership_pct is not none %}<span class="asset-pct">· {{ '%g' % h.ownership_pct }}%</span>{% endif %}
             </div>
-            <div style="position: relative; z-index: 10; display: flex; flex-wrap: wrap; gap: 0.25rem;">
+            <div class="asset-chips">
                 {% if h.in_trust %}
                     <span class="asset-badge badge-trust">In the trust</span>
                 {% else %}
-                    <span class="asset-badge" style="background: #ede9fe; color: #5b21b6;">{{ h.entity.name }}</span>
+                    <span class="asset-badge chip-plum">{{ h.entity.name }}</span>
                 {% endif %}
-                {% if h.owner %}
-                    <span class="asset-badge" style="background: #f3f4f6; color: #374151;">{{ h.owner.name }}</span>
-                {% endif %}
-                {% if h.secured_by %}
-                    <span class="asset-badge" style="background: #fef3c7; color: #92400e;">Secured by {{ h.secured_by.name }}</span>
-                {% endif %}
+                {% if h.owner %}<span class="asset-badge chip-stone">{{ h.owner.name }}</span>{% endif %}
+                {% if h.secured_by %}<span class="asset-badge chip-gold">Secured by {{ h.secured_by.name }}</span>{% endif %}
             </div>
+            <div class="asset-glyph" aria-hidden="true">{{ h.icon }}</div>
         </div>
-        <div style="position: absolute; bottom: 10px; right: 15px; font-size: 3.5rem; opacity: 0.15; user-select: none; pointer-events: none; z-index: 0;">
-            {{ h.icon }}
-        </div>
+        {% endfor %}
     </div>
+    {% else %}
+    <p class="empty" style="margin-bottom: 2.5rem;">No {{ meta.label|lower }} recorded.</p>
+    {% endif %}
     {% endfor %}
 </div>
-{% else %}
-<p style="color: #666; margin-bottom: 2.5rem; font-style: italic;">No {{ meta.label|lower }} recorded.</p>
-{% endif %}
-{% endfor %}
 
 <script>
     function toggleDropdown(event, menuId) {
         event.stopPropagation();
-        document.querySelectorAll('.menu-dropdown').forEach(menu => {
-            if (menu.id !== menuId) menu.classList.remove('show');
-        });
+        document.querySelectorAll('.menu-dropdown').forEach(menu => { if (menu.id !== menuId) menu.classList.remove('show'); });
         const menu = document.getElementById(menuId);
         if (menu) menu.classList.toggle('show');
     }

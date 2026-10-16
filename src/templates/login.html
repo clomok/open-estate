@@ -2,29 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Estate Login</title>
-    <style>
-        /* Temporary CSS for Phase 1 */
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f3f4f6; }
-        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; margin-right: 0.5rem; }
-        button { padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #1d4ed8; }
-        .error { color: red; margin-bottom: 1rem; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1b2f6e">
+    <title>Open Estate · Sign in</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <div class="card">
-        <h2>Open Estate Dashboard Access</h2>
+<body class="login-body">
+    <div class="login-card">
+        <span class="brand-mark">Open Estate</span>
+        <h1 class="brand-name">The Binder</h1>
+        <div class="brand-rule" aria-hidden="true"></div>
+        <p>Everything the family will need, in one place, ready when the time comes.</p>
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 <div class="error">{{ messages[0] }}</div>
             {% endif %}
         {% endwith %}
         <form method="post">
-            <input type="password" name="password" placeholder="Enter Admin Password" required autofocus>
-            <button type="submit">Unlock</button>
+            <input type="password" name="password" placeholder="Password" aria-label="Password" required autofocus>
+            <button type="submit" class="btn-primary">Open the binder</button>
         </form>
+        <div class="login-foot">Private · Self-hosted · Offline-first</div>
     </div>
 </body>
 </html>

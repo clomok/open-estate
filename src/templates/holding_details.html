@@ -1,51 +1,43 @@
 {% extends 'base.html' %}
 
+{% block title %}{{ holding.name }} · Open Estate{% endblock %}
 {% block content %}
 {% set side = holding.side %}
 {% set attrs = holding.attributes or {} %}
-<div style="max-width: 1200px; margin: 0 auto;">
+<div class="page" style="max-width: 1200px;">
 
-    <div style="margin-bottom: 1.5rem;">
-        <a href="{{ url_for('main.holdings_view') }}" style="display: inline-flex; align-items: center; color: #6b7280; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
-            <span style="margin-right: 0.5rem;">←</span> Back to Holdings
-        </a>
-    </div>
+    <a href="{{ url_for('main.holdings_view') }}" class="oe-back">← Back to Holdings</a>
 
-    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+    <div class="holding-head">
         <div>
-            <div style="font-size: 0.9rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
-                {{ holding.icon }} {{ holding.side_meta.singular }} · {{ holding.type_label }}
-            </div>
-            <h1 style="margin: 0; font-size: 2.5rem;">{{ holding.name }}</h1>
-            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <span class="eyebrow">{{ holding.icon }} {{ holding.side_meta.singular }} · {{ holding.type_label }}</span>
+            <h1>{{ holding.name }}</h1>
+            <div class="row" style="gap: 0.5rem;">
                 {% if holding.in_trust %}
-                    <span style="color: #065f46; background: #d1fae5; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem;">In {{ root.name }}</span>
+                    <span class="chip badge-trust">In {{ root.name }}</span>
                 {% else %}
-                    <span style="color: #5b21b6; background: #ede9fe; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem;">{{ holding.entity.name }} · {{ holding.entity.kind_label }}</span>
+                    <span class="chip chip-plum">{{ holding.entity.name }} · {{ holding.entity.kind_label }}</span>
                 {% endif %}
-                {% if holding.owner %}<span style="color: #666;">Owner: {{ holding.owner.name }}</span>{% endif %}
+                {% if holding.owner %}<span class="muted small">Owner: {{ holding.owner.name }}</span>{% endif %}
             </div>
         </div>
-        <div style="text-align: right;">
-            <div style="font-size: 2.5rem; font-weight: bold; color: {% if side == 'liability' %}#ef4444{% elif side == 'equity' %}#7c3aed{% else %}#10b981{% endif %};">
-                {{ holding.value_cents | currency }}
-            </div>
-            <div style="color: #666; font-size: 0.9rem;">{{ holding.side_meta.value_label }}{% if side == 'equity' and holding.ownership_pct is not none %} · {{ '%g' % holding.ownership_pct }}% owned{% endif %}</div>
-            <div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
-                <form method="POST" action="{{ url_for('manage.verify_holding', id=holding.id) }}" style="margin: 0;">
+        <div class="holding-value is-{{ side }}">
+            <div class="figure-xl">{{ holding.value_cents | currency }}</div>
+            <div class="muted small">{{ holding.side_meta.value_label }}{% if side == 'equity' and holding.ownership_pct is not none %} · {{ '%g' % holding.ownership_pct }}% owned{% endif %}</div>
+            <div class="verify-row">
+                <form method="POST" action="{{ url_for('manage.verify_holding', id=holding.id) }}">
                     {{ form.hidden_tag() }}
-                    <button type="submit" style="background: none; border: 1px solid #10b981; color: #047857; border-radius: 4px; padding: 0.25rem 0.6rem; cursor: pointer;"
-                            title="Confirm the details on this page are still true">✓ Mark verified</button>
+                    <button type="submit" class="btn btn-sm ev-btn-done" style="font-size: 0.85rem;" title="Confirm the details on this page are still true">✓ Mark verified</button>
                 </form>
-                <a href="{{ url_for('manage.edit_holding', id=holding.id) }}" style="color: #2563eb; text-decoration: none;">✎ Edit</a>
+                <a href="{{ url_for('manage.edit_holding', id=holding.id) }}" class="btn btn-sm">✎ Edit</a>
             </div>
-            <div style="font-size: 0.8rem; color: #9ca3af; margin-top: 0.4rem;">
+            <div class="verified-note">
                 {% if holding.last_verified %}Last verified {{ holding.last_verified }}{% else %}Never verified{% endif %}
             </div>
         </div>
     </div>
 
-    <div class="tabs-header" style="display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 2rem; overflow-x: auto;">
+    <div class="tabs-header">
         <button class="tab-btn active" onclick="openTab(event, 'tab-overview')">Overview</button>
         {% if side != 'liability' %}
         <button class="tab-btn" onclick="openTab(event, 'tab-beneficiaries')">Beneficiaries ({{ holding.beneficiary_designations|length }})</button>
@@ -58,63 +50,64 @@
     </div>
 
     <div id="tab-overview" class="tab-content">
-        <div class="grid-2-sidebar" style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
-            <div>
-                <div class="summary-card" style="margin-bottom: 2rem;">
-                    <h3 style="margin-top: 0;">Value History</h3>
-                    <div style="position: relative; height: 300px; width: 100%;">
+        <div class="grid-2-sidebar">
+            <div class="stack">
+                <div class="summary-card">
+                    <h3>Value history</h3>
+                    <div class="chart-box" style="height: 300px; margin-bottom: 0;">
                         <canvas id="valueChart"></canvas>
                     </div>
                 </div>
 
-                <div class="summary-card">
-                    <h3 style="margin-top: 0; margin-bottom: 1rem;">Valuation Log</h3>
-                    <table class="data-table">
+                <div class="summary-card card-flush">
+                    <h3 style="padding: 1.2rem 1.5rem 0;">Valuation log</h3>
+                    <div class="table-wrap">
+                    <table class="data-table" style="border: none; box-shadow: none; border-radius: 0;">
                         <thead>
                             <tr><th>Date</th><th>Value</th><th>Source</th><th>Notes</th><th style="width: 50px;"></th></tr>
                         </thead>
                         <tbody>
                             {% for record in holding.valuations %}
                             <tr>
-                                <td>{{ record.date.isoformat() }}</td>
-                                <td style="font-weight: bold;">{{ record.value_cents | currency }}</td>
+                                <td class="nowrap">{{ record.date.isoformat() }}</td>
+                                <td class="figure" style="font-weight: 600;">{{ record.value_cents | currency }}</td>
                                 <td>{{ record.source or '' }}</td>
-                                <td style="color: #666; font-size: 0.9rem;">{{ record.notes or '' }}</td>
-                                <td style="text-align: right;">
-                                    <button type="button"
+                                <td class="muted small">{{ record.notes or '' }}</td>
+                                <td class="right">
+                                    <button type="button" class="icon-btn"
                                         data-id="{{ record.id }}" data-date="{{ record.date.isoformat() }}"
                                         data-value="{{ record.value_cents | money_input }}"
                                         data-source="{{ record.source or '' }}" data-notes="{{ record.notes or '' }}"
-                                        onclick="openEditModal(this.dataset)"
-                                        style="background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0.25rem;">✎</button>
+                                        onclick="openEditModal(this.dataset)" title="Edit">✎</button>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" style="text-align: center; color: #999;">No historical records yet.</td></tr>
+                            <tr><td colspan="5" class="empty" style="text-align: center;">No historical records yet.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 
-            <div>
-                <div class="summary-card" style="background: #f0f9ff; border-color: #bae6fd; margin-bottom: 2rem;">
-                    <h3 style="margin-top: 0; color: #0369a1;">Update Value</h3>
+            <div class="stack">
+                <div class="summary-card card-tint-royal">
+                    <h3>Update value</h3>
                     <form method="POST" action="{{ url_for('manage.add_valuation', id=holding.id) }}">
                         {{ form.hidden_tag() }}
-                        <div style="margin-bottom: 1rem;">{{ form.date(style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;") }}</div>
-                        <div style="margin-bottom: 1rem;">{{ form.value(style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;", placeholder="Value $", inputmode="decimal") }}</div>
-                        <div style="margin-bottom: 1rem;">{{ form.source(style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;", placeholder="Source") }}</div>
-                        <div style="margin-bottom: 1rem;">{{ form.notes(style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 4px;", placeholder="Notes...", rows=2) }}</div>
-                        <button type="submit" style="width: 100%; background: #0284c7; color: white; border: none; padding: 0.75rem; border-radius: 4px; cursor: pointer;">Record Valuation</button>
+                        <div class="oe-field">{{ form.date() }}</div>
+                        <div class="oe-field">{{ form.value(placeholder="Value $", inputmode="decimal") }}</div>
+                        <div class="oe-field">{{ form.source(placeholder="Source") }}</div>
+                        <div class="oe-field">{{ form.notes(placeholder="Notes…", rows=2) }}</div>
+                        <button type="submit" class="btn-primary btn-block">Record valuation</button>
                     </form>
                 </div>
 
                 <div class="summary-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin-top: 0;">Details</h3>
+                    <div class="row-between">
+                        <h3>Details</h3>
                         {% if htype and (htype.custom or htype.fields|selectattr('is_sensitive')|list) %}
-                        <button type="button" onclick="toggleSecrets(this)" style="background: none; border: none; color: #2563eb; cursor: pointer; font-size: 0.85rem; text-decoration: underline;">Show sensitive</button>
+                        <button type="button" onclick="toggleSecrets(this)" class="text-btn royal">Show sensitive</button>
                         {% endif %}
                     </div>
 
@@ -138,14 +131,14 @@
                             {% if f.is_sensitive %}
                             <div><span class="masked">{{ attrs[f.name] | mask }}</span><span class="secret" style="display: none;">{{ display_value(f, attrs[f.name]) }}</span></div>
                             {% else %}
-                            <div style="white-space: pre-wrap;">{{ display_value(f, attrs[f.name]) }}</div>
+                            <div class="pre">{{ display_value(f, attrs[f.name]) }}</div>
                             {% endif %}
                         </div>
                         {% endfor %}
                     {% endif %}
 
                     {% if holding.notes %}
-                    <div class="detail-row"><div class="detail-label">Notes</div><div style="white-space: pre-wrap;">{{ holding.notes }}</div></div>
+                    <div class="detail-row"><div class="detail-label">Notes</div><div class="pre">{{ holding.notes }}</div></div>
                     {% endif %}
                 </div>
             </div>
@@ -154,9 +147,10 @@
 
     {% if side != 'liability' %}
     <div id="tab-beneficiaries" class="tab-content" style="display:none;">
-        <h3 style="margin-top: 0;">Who inherits this</h3>
+        <h3>Who inherits this</h3>
         {% set totals = holding.share_totals() %}
-        <table class="data-table" style="margin-bottom: 1rem;">
+        <div class="table-wrap" style="margin-bottom: 1.25rem;">
+        <table class="data-table">
             <thead><tr><th>Beneficiary</th><th>Share</th><th>Designated by</th><th>Notes</th><th></th></tr></thead>
             <tbody>
                 {% for d in holding.beneficiary_designations %}
@@ -164,35 +158,34 @@
                 <tr>
                     <td>
                         <form id="{{ fid }}" method="POST" action="{{ url_for('manage.edit_designation', id=d.id) }}">{{ designation_form.hidden_tag() }}</form>
-                        <select name="person_id" form="{{ fid }}" style="padding: 0.3rem;">
+                        <select name="person_id" form="{{ fid }}">
                             {% for p in people %}<option value="{{ p.id }}" {% if p.id == d.person_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td><input name="percentage" form="{{ fid }}" type="number" step="0.01" min="0.01" max="100" value="{{ '%g' % d.percentage }}" style="width: 6rem; padding: 0.3rem;"> %</td>
+                    <td class="nowrap"><input name="percentage" form="{{ fid }}" type="number" step="0.01" min="0.01" max="100" value="{{ '%g' % d.percentage }}" class="w-sm"> %</td>
                     <td>
-                        <select name="kind" form="{{ fid }}" style="padding: 0.3rem;">
+                        <select name="kind" form="{{ fid }}">
                             {% for value, label in kind_labels.items() %}<option value="{{ value }}" {% if value == d.kind %}selected{% endif %}>{{ label }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td><input name="notes" form="{{ fid }}" value="{{ d.notes or '' }}" style="width: 100%; padding: 0.3rem;"></td>
-                    <td style="white-space: nowrap; text-align: right;">
-                        <button type="submit" form="{{ fid }}" style="background: #2563eb; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;">Save</button>
+                    <td><input name="notes" form="{{ fid }}" value="{{ d.notes or '' }}" class="w-full"></td>
+                    <td class="nowrap right">
+                        <button type="submit" form="{{ fid }}" class="btn-primary btn-sm">Save</button>
                         <button type="submit" form="{{ fid }}" formaction="{{ url_for('manage.delete_designation', id=d.id) }}" formnovalidate
-                                onclick="return confirm('Remove this share?')"
-                                style="background: #fee2e2; color: #b91c1c; border: none; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer;">Remove</button>
+                                onclick="return confirm('Remove this share?')" class="btn btn-sm" style="color: var(--oxblood);">Remove</button>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" style="text-align: center; color: #999;">No beneficiaries named for this item yet.</td></tr>
+                <tr><td colspan="5" class="empty" style="text-align: center;">No beneficiaries named for this item yet.</td></tr>
                 {% endfor %}
             </tbody>
             {% if totals %}
             <tfoot>
                 {% for kind, total in totals.items() %}
-                <tr style="font-weight: bold;">
+                <tr>
                     <td>Total · {{ kind_labels[kind] }}</td>
-                    <td style="color: {% if total == 100 %}#047857{% else %}#b91c1c{% endif %};">{{ '%g' % total }}%</td>
-                    <td colspan="3" style="font-weight: normal; color: {% if total == 100 %}#047857{% else %}#b91c1c{% endif %};">
+                    <td class="{% if total == 100 %}is-asset{% else %}is-liability{% endif %}">{{ '%g' % total }}%</td>
+                    <td colspan="3" class="{% if total == 100 %}is-asset{% else %}is-liability{% endif %}" style="font-weight: 400;">
                         {% if total == 100 %}Complete{% elif total < 100 %}{{ '%g' % (100 - total) }}% not yet assigned{% else %}Over-assigned by {{ '%g' % (total - 100) }}%{% endif %}
                     </td>
                 </tr>
@@ -200,17 +193,18 @@
             </tfoot>
             {% endif %}
         </table>
+        </div>
 
-        <div class="summary-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+        <div class="summary-card card-tint-laurel">
             <h4 style="margin-top: 0;">Add a share</h4>
             {% if people %}
-            <form method="POST" action="{{ url_for('manage.add_designation', id=holding.id) }}" style="display: grid; grid-template-columns: 2fr 1fr 2fr 2fr auto; gap: 0.5rem; align-items: end;">
+            <form method="POST" action="{{ url_for('manage.add_designation', id=holding.id) }}" class="share-form">
                 {{ designation_form.hidden_tag() }}
-                <div><label class="small-label">Beneficiary</label>{{ designation_form.person_id(style="width: 100%; padding: 0.4rem;") }}</div>
-                <div><label class="small-label">Share %</label>{{ designation_form.percentage(style="width: 100%; padding: 0.4rem;", type="number", step="0.01", min="0.01", max="100") }}</div>
-                <div><label class="small-label">Designated by</label>{{ designation_form.kind(style="width: 100%; padding: 0.4rem;") }}</div>
-                <div><label class="small-label">Notes</label>{{ designation_form.notes(style="width: 100%; padding: 0.4rem;") }}</div>
-                <button type="submit" style="background: #059669; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Add</button>
+                <div><label class="small-label">Beneficiary</label>{{ designation_form.person_id() }}</div>
+                <div><label class="small-label">Share %</label>{{ designation_form.percentage(type="number", step="0.01", min="0.01", max="100") }}</div>
+                <div><label class="small-label">Designated by</label>{{ designation_form.kind() }}</div>
+                <div><label class="small-label">Notes</label>{{ designation_form.notes() }}</div>
+                <button type="submit" class="btn-primary">Add</button>
             </form>
             {% else %}
             <p style="margin: 0;">Add the people first on the <a href="{{ url_for('main.contacts_view') }}">Contacts</a> page.</p>
@@ -220,61 +214,63 @@
     {% endif %}
 
     <div id="tab-structures" class="tab-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3>Structures &amp; Accommodations</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='structure') }}" class="btn-primary">+ Add Structure</a>
+        <div class="row-between">
+            <h3>Structures &amp; accommodations</h3>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='structure') }}" class="btn-primary btn-sm">+ Add structure</a>
         </div>
         <div class="grid-3">
             {% for item in holding.structures %}
             <div class="summary-card">
-                <div style="font-weight:bold; font-size:1.1rem;">{{ item.name }}</div>
-                <div style="font-size:0.85rem; color:#666; margin-bottom:0.5rem;">{{ item.structure_type or '' }}</div>
+                <div style="font-family: var(--serif); font-weight: 600; font-size: 1.1rem;">{{ item.name }}</div>
+                <div class="small muted" style="margin-bottom: 0.5rem;">{{ item.structure_type or '' }}</div>
                 <p>{{ item.description or '' }}</p>
                 {% if item.date_last_maintained %}
-                <div style="font-size:0.85rem; color:#059669; margin-top:0.5rem;">Last maintained: {{ item.date_last_maintained }}</div>
+                <div class="small is-asset">Last maintained: {{ item.date_last_maintained }}</div>
                 {% endif %}
-                <div style="margin-top:1rem; border-top:1px solid #eee; padding-top:0.5rem; text-align:right;">
-                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" style="color:#ef4444; font-size:0.85rem;" onclick="return confirm('Delete?')">Remove</a>
+                <div class="right" style="margin-top: 1rem; border-top: 1px solid var(--parchment-deep); padding-top: 0.5rem;">
+                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" class="btn-danger-text" onclick="return confirm('Delete?')">Remove</a>
                 </div>
             </div>
             {% else %}
-            <p style="color:#999;">No structures recorded.</p>
+            <p class="empty">No structures recorded.</p>
             {% endfor %}
         </div>
     </div>
 
     <div id="tab-systems" class="tab-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3>Location Pins</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='location') }}" class="btn-primary">📍 Drop Pin</a>
+        <div class="row-between">
+            <h3>Location pins</h3>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='location') }}" class="btn-primary btn-sm">📍 Drop pin</a>
         </div>
+        <div class="table-wrap">
         <table class="data-table">
             <thead><tr><th>Label</th><th>Coordinates</th><th>Description</th><th>Map</th><th></th></tr></thead>
             <tbody>
                 {% for pin in holding.location_points %}
                 <tr>
-                    <td style="font-weight:bold;">{{ pin.label }}</td>
-                    <td style="font-family:monospace;">{{ "%.6f"|format(pin.latitude) }}, {{ "%.6f"|format(pin.longitude) }}</td>
+                    <td style="font-weight: 600;">{{ pin.label }}</td>
+                    <td class="mono">{{ "%.6f"|format(pin.latitude) }}, {{ "%.6f"|format(pin.longitude) }}</td>
                     <td>{{ pin.description or '' }}</td>
-                    <td><a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" style="color:#2563eb;">Open Map</a></td>
-                    <td style="text-align:right;">
-                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" style="color:#ef4444;" onclick="return confirm('Delete pin?')">×</a>
+                    <td><a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" rel="noopener">Open map</a></td>
+                    <td class="right">
+                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" class="icon-btn danger" onclick="return confirm('Delete pin?')">×</a>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" style="text-align:center; color:#999;">No pins dropped yet. Use "Drop Pin" while standing at the location.</td></tr>
+                <tr><td colspan="5" class="empty" style="text-align: center;">No pins dropped yet. Use "Drop pin" while standing at the location.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     <div id="tab-events" class="tab-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="row-between">
             <h3>Events</h3>
-            <a href="{{ url_for('manage.create_event', holding_id=holding.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}" class="btn-primary">+ Add event</a>
+            <a href="{{ url_for('manage.create_event', holding_id=holding.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}" class="btn-primary btn-sm">+ Add event</a>
         </div>
         {% for e in holding.events %}
-        <a class="ev-row ev-kind-{{ e.kind }}{% if e.is_done %} ev-done{% endif %}" style="text-decoration: none; color: inherit;"
+        <a class="ev-row ev-kind-{{ e.kind }}{% if e.is_done %} ev-done{% endif %}"
            href="{{ url_for('manage.edit_event', id=e.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}">
             <div class="ev-icon">{{ e.icon }}</div>
             <div class="ev-body">
@@ -287,76 +283,78 @@
             </div>
         </a>
         {% else %}
-        <p style="color:#999; text-align:center;">No events for this holding. Bill due dates and checks appear on the Now page by themselves.</p>
+        <p class="empty" style="text-align: center;">No events for this holding. Bill due dates and checks appear on the Now page by themselves.</p>
         {% endfor %}
     </div>
 
     <div id="tab-bills" class="tab-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3>Recurring Bills</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='bill') }}" class="btn-primary">+ Add Bill</a>
+        <div class="row-between">
+            <h3>Recurring bills</h3>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='bill') }}" class="btn-primary btn-sm">+ Add bill</a>
         </div>
+        <div class="table-wrap">
         <table class="data-table">
-            <thead><tr><th>Bill Name</th><th>Payee / Acct #</th><th>Frequency</th><th>Amount (Est)</th><th>Next Due</th><th></th></tr></thead>
+            <thead><tr><th>Bill</th><th>Payee / Acct #</th><th>Frequency</th><th>Amount (est.)</th><th>Next due</th><th></th></tr></thead>
             <tbody>
                 {% for bill in holding.bills %}
                 <tr>
-                    <td style="font-weight:bold;">{{ bill.name }}</td>
+                    <td style="font-weight: 600;">{{ bill.name }}</td>
                     <td>
                         {{ bill.payee or '' }}
-                        {% if bill.account_number %}<div style="font-size: 0.8rem; color: #666; font-family: monospace;">#{{ bill.account_number }}</div>{% endif %}
+                        {% if bill.account_number %}<div class="small muted mono">#{{ bill.account_number }}</div>{% endif %}
                     </td>
                     <td>{{ bill.frequency or '' }}</td>
-                    <td>{{ bill.amount_cents | currency }}</td>
-                    <td>{{ bill.next_due_date or '-' }}</td>
-                    <td style="text-align:right;">
-                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" style="color:#ef4444;" onclick="return confirm('Remove bill?')">×</a>
+                    <td class="figure">{{ bill.amount_cents | currency }}</td>
+                    <td class="nowrap">{{ bill.next_due_date or '-' }}</td>
+                    <td class="right">
+                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="icon-btn danger" onclick="return confirm('Remove bill?')">×</a>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" style="text-align:center; color:#999;">No recurring bills linked.</td></tr>
+                <tr><td colspan="6" class="empty" style="text-align: center;">No recurring bills linked.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     <div id="tab-team" class="tab-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-            <h3>People Who Look After This</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='vendor') }}" class="btn-primary">+ Assign Contact</a>
+        <div class="row-between">
+            <h3>People who look after this</h3>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='vendor') }}" class="btn-primary btn-sm">+ Assign contact</a>
         </div>
         <div class="grid-3">
             {% for link in holding.vendors %}
-            <div class="summary-card" style="border-left: 4px solid #059669;">
-                <div style="font-weight:bold; font-size:1.1rem;">{{ link.provider.name }}</div>
-                <div style="background:#d1fae5; color:#065f46; display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin: 0.5rem 0;">{{ link.role }}</div>
-                <div style="font-size:0.9rem;"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
-                <div style="margin-top:0.5rem; font-style:italic; font-size:0.85rem; color:#666;">{{ link.notes or '' }}</div>
-                <div style="text-align:right; margin-top:1rem;">
-                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" style="color:#ef4444; font-size:0.85rem;" onclick="return confirm('Unassign?')">Unassign</a>
+            <div class="summary-card card-accent-laurel">
+                <div style="font-family: var(--serif); font-weight: 600; font-size: 1.1rem;">{{ link.provider.name }}</div>
+                <span class="chip chip-laurel" style="margin: 0.4rem 0 0.6rem;">{{ link.role }}</span>
+                <div class="small"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
+                {% if link.notes %}<div class="person-note">{{ link.notes }}</div>{% endif %}
+                <div class="right" style="margin-top: 1rem;">
+                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="btn-danger-text" onclick="return confirm('Unassign?')">Unassign</a>
                 </div>
             </div>
             {% else %}
-            <p style="color:#999;">No one assigned to this item yet.</p>
+            <p class="empty">No one assigned to this item yet.</p>
             {% endfor %}
         </div>
     </div>
 </div>
 
-<div id="editModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;">
-    <div style="background: white; width: 100%; max-width: 500px; border-radius: 8px; padding: 2rem;">
-        <h2 style="margin-top: 0;">Edit Valuation</h2>
+<div id="editModal" class="modal-backdrop">
+    <div class="modal">
+        <h2>Edit valuation</h2>
         <form id="editForm" method="POST">
             {{ form.hidden_tag() }}
-            <div style="margin-bottom: 1rem;"><label>Date</label><input type="date" name="date" id="modalDate" required style="width: 100%; padding: 0.5rem; border:1px solid #ccc;"></div>
-            <div style="margin-bottom: 1rem;"><label>Value ($)</label><input type="text" inputmode="decimal" name="value" id="modalValue" required style="width: 100%; padding: 0.5rem; border:1px solid #ccc;"></div>
-            <div style="margin-bottom: 1rem;"><label>Source</label><input type="text" name="source" id="modalSource" style="width: 100%; padding: 0.5rem; border:1px solid #ccc;"></div>
-            <div style="margin-bottom: 1rem;"><label>Notes</label><textarea name="notes" id="modalNotes" style="width: 100%; padding: 0.5rem; border:1px solid #ccc;"></textarea></div>
-            <div style="display:flex; justify-content:space-between;">
-                <button type="submit" id="btnDelete" formnovalidate style="background:#fee2e2; color:#b91c1c; border:none; padding:0.5rem 1rem;">Delete</button>
-                <div>
-                    <button type="button" onclick="closeEditModal()" style="margin-right:0.5rem;">Cancel</button>
-                    <button type="submit" id="btnSave" style="background:#2563eb; color:white; border:none; padding:0.5rem 1rem;">Save</button>
+            <div class="oe-field"><label for="modalDate">Date</label><input type="date" name="date" id="modalDate" required></div>
+            <div class="oe-field"><label for="modalValue">Value ($)</label><input type="text" inputmode="decimal" name="value" id="modalValue" required></div>
+            <div class="oe-field"><label for="modalSource">Source</label><input type="text" name="source" id="modalSource"></div>
+            <div class="oe-field"><label for="modalNotes">Notes</label><textarea name="notes" id="modalNotes" rows="2"></textarea></div>
+            <div class="oe-actions">
+                <button type="submit" id="btnDelete" formnovalidate class="btn-danger-text">Delete</button>
+                <div class="row">
+                    <button type="button" onclick="closeEditModal()" class="btn">Cancel</button>
+                    <button type="submit" id="btnSave" class="btn-primary">Save</button>
                 </div>
             </div>
         </form>
@@ -364,14 +362,8 @@
 </div>
 
 <style>
-    .tabs-header { margin-bottom: 2rem; }
-    .tab-btn { background: none; border: none; padding: 0.75rem 1.5rem; font-size: 1rem; cursor: pointer; color: #6b7280; border-bottom: 2px solid transparent; white-space: nowrap; }
-    .tab-btn:hover { color: #1f2937; }
-    .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: bold; }
-    .btn-primary { background: #2563eb; color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.9rem; }
-    .detail-row { margin-bottom: 0.75rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.5rem; }
-    .detail-label { font-size: 0.8rem; color: #999; text-transform: uppercase; }
-    .small-label { display: block; font-size: 0.8rem; color: #4b5563; margin-bottom: 0.2rem; }
+    .share-form { display: grid; grid-template-columns: 2fr 1fr 2fr 2fr auto; gap: 0.6rem; align-items: end; }
+    @media (max-width: 800px) { .share-form { grid-template-columns: 1fr 1fr; } .share-form button { grid-column: 1 / -1; } }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -428,15 +420,17 @@
                 labels: {{ chart_dates | tojson }},
                 datasets: [{
                     label: 'Value', data: {{ chart_values | tojson }},
-                    borderColor: '{% if side == "liability" %}#ef4444{% else %}#2563eb{% endif %}',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)', fill: true
+                    borderColor: '{% if side == "liability" %}#8e2f2f{% elif side == "equity" %}#8a6b2f{% else %}#2a4494{% endif %}',
+                    backgroundColor: '{% if side == "liability" %}rgba(142, 47, 47, 0.10){% elif side == "equity" %}rgba(138, 107, 47, 0.12){% else %}rgba(42, 68, 148, 0.12){% endif %}',
+                    borderWidth: 2.5, fill: true, tension: 0.3, pointRadius: 3
                 }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
                 scales: {
-                    x: { type: 'time', time: { unit: 'year' } },
-                    y: { ticks: { callback: function(val) { return val.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0}); } } }
+                    x: { type: 'time', time: { unit: 'year' }, grid: { display: false }, ticks: { color: '#8c8270' } },
+                    y: { grid: { color: '#efe8da' }, ticks: { color: '#8c8270', callback: function(val) { return val.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0}); } } }
                 }
             }
         });

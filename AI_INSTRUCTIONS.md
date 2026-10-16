@@ -135,7 +135,8 @@ Consequences to respect:
   snooze a week, open. The net-worth dashboard is `/overview`.
 - **Derived feeds** (bills due, trust review, not verified lately, stale
   values, unreachable contacts, beneficiary gaps) computed at read time.
-- **Playbooks**, with the editable default death-of-trustor playbook.
+- **Playbooks**, with the editable default death-of-trustor playbook. The
+  questions-and-answers list sits at the foot of the same page (`/faq` redirects there).
 - **Durability:**
 - Backup (JSON/HTML) & Restore, covering **every** table including association rows.
 - Single source of truth: `src/services/backup_schema.py`.

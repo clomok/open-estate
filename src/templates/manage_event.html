@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% from '_form.html' import field %}
 
+{% block title %}{{ title }} · Open Estate{% endblock %}
 {% block content %}
 {% set nxt = request.values.get('next', '') %}
 {% set back = nxt if nxt.startswith('/') and not nxt.startswith('//') else url_for('main.now') %}
-<div class="oe-form-page">
+<div class="page-form">
     <a class="oe-back" href="{{ back }}">← Back</a>
-    <h1>{{ title }}</h1>
+    <div class="page-head"><div><span class="eyebrow">Timeline</span><h1>{{ title }}</h1></div></div>
     {% if event and event.source %}
     <p class="oe-note">
         {% if event.source.startswith('playbook:') %}Made by a playbook run.{% else %}Worked out from your records, then saved when it was touched. Marking it done moves the record on (a bill's next due date, a verified date).{% endif %}
