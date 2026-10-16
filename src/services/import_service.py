@@ -63,6 +63,10 @@ def restore_from_json(json_content):
             for row_data in data.get(key, []):
                 db.session.add(model(**_row_kwargs(model.__table__, row_data)))
                 restored += 1
+            # Flush per table: the unit of work only orders inserts along
+            # mapped relationships, and Task -> Asset has none, so with
+            # foreign keys enforced it must not be left to guess.
+            db.session.flush()
 
         # 3. Association rows last - both sides of the link now exist.
         for key, table in BACKUP_TABLES:

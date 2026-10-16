@@ -1,0 +1,196 @@
+{
+  "version": "2.0",
+  "timestamp": "2026-10-15T00:00:00",
+  "people": [
+    {
+      "id": 1,
+      "name": "Tony Example",
+      "role": "Trustor",
+      "email": "tony@example.com",
+      "phone": "555-0100",
+      "attributes": {
+        "relationship": "Father"
+      }
+    },
+    {
+      "id": 2,
+      "name": "John Example",
+      "role": "Beneficiary",
+      "email": "john@example.com",
+      "phone": "555-0101",
+      "attributes": {}
+    },
+    {
+      "id": 3,
+      "name": "Pat Pipewrench",
+      "role": "Vendor",
+      "email": "pat@example.com",
+      "phone": "555-0102",
+      "attributes": {}
+    }
+  ],
+  "assets": [
+    {
+      "id": 10,
+      "name": "Family Home",
+      "asset_type": "real_estate",
+      "is_in_trust": true,
+      "owner_id": 1,
+      "value_estimated": 750000.0,
+      "attributes": {
+        "address": "1 Example Way"
+      }
+    },
+    {
+      "id": 11,
+      "name": "1969 Coupe",
+      "asset_type": "vehicle",
+      "is_in_trust": false,
+      "owner_id": 1,
+      "value_estimated": 42000.0,
+      "attributes": {
+        "vin": "EXAMPLE123"
+      }
+    },
+    {
+      "id": 12,
+      "name": "Home Mortgage",
+      "asset_type": "Liability",
+      "is_in_trust": true,
+      "owner_id": null,
+      "value_estimated": -250000.0,
+      "attributes": {
+        "lender": "Example Bank",
+        "account_number": "LN-4417",
+        "interest_rate": "3.5%",
+        "due_date": "1",
+        "outstanding_balance": "250000",
+        "notes": "Refinanced 2020"
+      }
+    },
+    {
+      "id": 13,
+      "name": "Grandmother's Ring",
+      "asset_type": "Jewelry",
+      "is_in_trust": false,
+      "owner_id": null,
+      "value_estimated": 8000.5,
+      "attributes": {
+        "location": "Safe",
+        "appraisal_date": "2018-05-20",
+        "appraiser_info": "Local Jeweler",
+        "description": null,
+        "insurance_rider": "R-22"
+      }
+    }
+  ],
+  "appraisals": [
+    {
+      "id": 20,
+      "asset_id": 10,
+      "date": "2025-04-01",
+      "value": 740000.0,
+      "source": "Zillow",
+      "notes": "Pre-renovation"
+    },
+    {
+      "id": 21,
+      "asset_id": 12,
+      "date": "2010-01-01",
+      "value": -380000.0,
+      "source": "Origination",
+      "notes": null
+    }
+  ],
+  "tasks": [
+    {
+      "id": 30,
+      "title": "Retitle the coupe",
+      "status": "Pending",
+      "due_date": "2026-03-15T09:00:00",
+      "is_recurring": false,
+      "asset_id": 11
+    },
+    {
+      "id": 31,
+      "title": "Annual trust review",
+      "status": "Done",
+      "due_date": "2026-01-05T12:30:00",
+      "is_recurring": true,
+      "asset_id": null
+    }
+  ],
+  "milestones": [
+    {
+      "id": 40,
+      "title": "Trust funded",
+      "date_event": "2024-06-01T00:00:00",
+      "description": "All assets retitled",
+      "is_completed": true
+    }
+  ],
+  "structures": [
+    {
+      "id": 50,
+      "asset_id": 10,
+      "name": "North Garden Shed",
+      "structure_type": "Outbuilding",
+      "description": "Tools",
+      "date_built": "2011-05-02",
+      "date_last_maintained": "2025-08-14",
+      "notes": "Repaint 2027"
+    }
+  ],
+  "location_points": [
+    {
+      "id": 60,
+      "asset_id": 10,
+      "label": "Septic Tank Lid",
+      "latitude": 33.5427,
+      "longitude": -117.6631,
+      "description": "Under the fake rock"
+    }
+  ],
+  "bills": [
+    {
+      "id": 70,
+      "asset_id": 10,
+      "name": "County Property Tax",
+      "payee": "County Treasurer",
+      "account_number": "ACCT-9911",
+      "amount_estimated": 8200.0,
+      "frequency": "Annual",
+      "is_autopay": false,
+      "next_due_date": "2026-11-01",
+      "notes": "Two installments"
+    }
+  ],
+  "vendors": [
+    {
+      "id": 80,
+      "asset_id": 10,
+      "person_id": 3,
+      "role": "Plumber",
+      "notes": "Knows where the main shutoff is"
+    }
+  ],
+  "trust_profile": [
+    {
+      "id": 1,
+      "name": "The Example Family Trust",
+      "date_established": "2014-02-09",
+      "date_death_estimated": "2048-01-01",
+      "date_death_actual": null,
+      "review_frequency": "Annual",
+      "next_review_date": "2027-02-09",
+      "notes": "Reviewed by counsel"
+    }
+  ],
+  "asset_beneficiaries": [
+    {
+      "asset_id": 10,
+      "person_id": 2,
+      "percentage": 65.0
+    }
+  ]
+}
