@@ -682,7 +682,7 @@ button.menu-item { width: 100%; text-align: left; background: none; border: none
 .add-card h4 { margin-top: 0; }
 .flush { margin: 0; }
 .share-form { display: grid; grid-template-columns: 2fr 1fr 2fr 2fr auto; gap: 0.6rem; align-items: end; }
-@media (max-width: 800px) { .share-form { grid-template-columns: 1fr 1fr; } .share-form button { grid-column: 1 / -1; } }
+@container main (max-width: 800px) { .share-form { grid-template-columns: 1fr 1fr; } .share-form button { grid-column: 1 / -1; } }
 .btn-remove { color: var(--oxblood); }
 
 .value-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1rem; align-items: start; }
@@ -708,7 +708,7 @@ button.menu-item { width: 100%; text-align: left; background: none; border: none
 
 @media (max-width: 768px) {
     /* The round menu toggle is fixed at the top left; stick below it. */
-    .jump-bar { top: 3.9rem; }
+    .jump-bar { top: 3.9rem; box-shadow: 0 -3.9rem 0 var(--parchment); }  /* mask the strip above it */
     .hsec { scroll-margin-top: 8.5rem; }
 }
 @container main (max-width: 700px) {
