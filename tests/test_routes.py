@@ -287,3 +287,80 @@ def test_backup_download_and_upload_through_settings(client, estate):
     assert r.status_code == 302
     assert estate.session.get(Holding, 10).last_verified is None
     assert Holding.query.count() == 5
+
+
+# --- the holding page: one scroll of sections ---------------------------------
+
+import re
+
+
+def _ids(page):
+    return set(re.findall(r'\bid="([^"]+)"', page))
+
+
+def test_holding_page_renders_every_section(client, estate):
+    page = ok(client.get("/e/test/holding/10"))
+    assert {"details", "beneficiaries", "value", "bills", "team", "place", "events"} <= _ids(page)
+    assert "tab-btn" not in page and "openTab" not in page
+
+
+def test_every_jump_link_on_the_holding_page_lands_on_a_section(client, estate):
+    for hid in (10, 11, 12, 13, 14):
+        page = ok(client.get(f"/e/test/holding/{hid}"))
+        targets = set(re.findall(r'href="#([\w-]+)"', page))
+        assert targets and targets <= _ids(page), (hid, targets - _ids(page))
+
+
+def test_links_from_elsewhere_still_resolve(client, estate, app):
+    from src.services.feeds import _holding_link
+    with app.test_request_context("/e/test/"):
+        h = Holding.query.get(10)
+        anchors = [_holding_link(h, t).split("#")[1] for t in ("bills", "beneficiaries")]
+    page = ok(client.get("/e/test/holding/10"))
+    assert set(anchors + ["events"]) <= _ids(page)
+
+
+def test_attention_strip_shows_for_an_unverified_holding(client, estate):
+    h = Holding.query.get(10)
+    h.last_verified = date(2020, 1, 1)
+    estate.session.commit()
+    page = ok(client.get("/e/test/holding/10"))
+    assert 'id="attention"' in page
+    assert "Check Family Home is still right" in page
+    assert "Stale since 2020-01-01" in page
+
+
+def test_attention_strip_absent_for_a_fresh_verified_holding(client, estate):
+    bank = Holding(id=40, side="asset", type_code="bank", name="Everyday Checking",
+                   entity_id=2, value_cents=100000, last_verified=date.today(),
+                   attributes={"institution": "Example Bank"})
+    estate.session.add(bank)
+    estate.session.add(Valuation(holding_id=40, date=date.today(), value_cents=100000))
+    estate.session.commit()
+    page = ok(client.get("/e/test/holding/40"))
+    assert 'id="attention"' not in page
+    assert "Verified " + date.today().isoformat() in page
+    # A bank account has no place to stand: no Place section, but a pin can still be added.
+    assert 'id="place"' not in page
+    assert "/manage/holding/40/location/new" in page
+    assert "/manage/holding/40/structure/new" in page
+
+
+def test_a_liability_has_no_beneficiaries(client, estate):
+    page = ok(client.get("/e/test/holding/12"))
+    assert 'id="beneficiaries"' not in page
+    assert 'href="#beneficiaries"' not in page
+
+
+def test_holding_page_offers_delete(client, estate, app):
+    from flask import url_for
+    with app.test_request_context("/e/test/"):
+        action = url_for("manage.delete_holding", estate="test", id=10)
+    page = ok(client.get("/e/test/holding/10"))
+    assert f'action="{action}"' in page
+
+
+def test_holding_page_has_no_inline_styles(client, estate):
+    page = ok(client.get("/e/test/holding/10"))
+    content = page.split('class="page page-wide', 1)[1]
+    assert 'style="' not in content and "<style" not in content
