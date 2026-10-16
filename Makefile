@@ -1,58 +1,38 @@
-.PHONY: list new adopt build up down restart logs shell seed wipe test clean guard protected-guard
+.PHONY: estates adopt build up down restart logs shell seed wipe test clean guard estate-guard
 
-# Every command targets exactly one dataset:
+# One stack serves every estate; the estates themselves are listed in
+# instance/estates.json and switched from the sidebar. Commands that act on
+# ONE estate's data name it, and there is no default:
 #
-#   make up DATASET=demo
+#   make seed ESTATE=demo
 #
-# There is no default. Picking the wrong estate by omission is the one mistake
-# this layout exists to prevent.
-DATASET ?=
+# Picking the wrong estate by omission is the one mistake that cannot happen.
+ESTATE ?=
 # Linux hosts often have only python3; Windows dev boxes use ops.ps1.
 PYTHON ?= python3
-ENV_FILE = datasets/$(DATASET).env
-COMPOSE = docker compose --env-file $(ENV_FILE)
+SITE_ENV = datasets/site.env
+COMPOSE = docker compose --env-file $(SITE_ENV)
 
 guard:
-	@test -n "$(DATASET)" || { \
-		echo "Set DATASET, e.g. 'make up DATASET=demo'."; \
-		echo "Available datasets:"; $(MAKE) --no-print-directory list; exit 1; }
-	@test -f $(ENV_FILE) || { \
-		echo "No such dataset: $(ENV_FILE)"; \
-		echo "Create it with 'make new DATASET=$(DATASET)'."; exit 1; }
+	@test -f $(SITE_ENV) || { \
+		echo "No $(SITE_ENV). Copy datasets/site.env.example and fill it in."; \
+		echo "Upgrading an install from the one-container-per-dataset layout?"; \
+		echo "Stop it, then run 'make adopt DATASET=<name>' once per dataset."; exit 1; }
 
-# Destructive commands stop dead at a dataset holding real data.
-protected-guard: guard
-	@if grep -q '^DATASET_PROTECTED=1' $(ENV_FILE); then \
-		echo "REFUSED: '$(DATASET)' is marked DATASET_PROTECTED=1 - it holds real data."; \
-		echo "Take a backup from the Settings page first, then clear the flag by hand."; \
-		exit 1; fi
+estate-guard: guard
+	@test -n "$(ESTATE)" || { \
+		echo "Name the estate, e.g. 'make $(MAKECMDGOALS) ESTATE=demo'. Estates here:"; \
+		$(PYTHON) scripts/estate_admin.py list; exit 1; }
 
-# Show every dataset this checkout knows about
-list:
-	@if ls datasets/*.env >/dev/null 2>&1; then \
-		ls datasets/*.env | sed 's|datasets/||; s|\.env$$||; s|^|  |'; \
-	else \
-		echo "  (none yet - run 'make new DATASET=demo')"; \
-	fi
+# Show every estate this install holds
+estates:
+	@$(PYTHON) scripts/estate_admin.py list
 
-# Create a new dataset from the template
-new:
-	@test -n "$(DATASET)" || { echo "Usage: make new DATASET=<name>"; exit 1; }
-	@test ! -f $(ENV_FILE) || { echo "$(ENV_FILE) already exists - refusing to overwrite."; exit 1; }
-	cp datasets/demo.env.example $(ENV_FILE)
-	@mkdir -p instance/$(DATASET)
-	@echo "Created $(ENV_FILE) and instance/$(DATASET)/."
-	@echo "EDIT IT: set DATASET=$(DATASET), a unique PORT, and a fresh SECRET_KEY + ADMIN_PASSWORD."
-
-# Move a pre-dataset install (instance/estate.db + .env) into a named dataset
+# Move an old instance/<name>/ dataset into instance/estates/<name>/ (run on
+# the host with the old stack stopped; DATASET=legacy for instance/estate.db)
 adopt:
-	@test -n "$(DATASET)" || { echo "Usage: make adopt DATASET=<name>"; exit 1; }
-	@test -f instance/estate.db || { echo "Nothing to adopt: instance/estate.db not found."; exit 1; }
-	mkdir -p instance/$(DATASET)
-	mv instance/estate.db* instance/$(DATASET)/
-	@test ! -f .env || cp .env $(ENV_FILE)
-	@echo "Moved the old database into instance/$(DATASET)/ and seeded $(ENV_FILE) from .env."
-	@echo "EDIT IT: add DATASET=$(DATASET), COMPOSE_PROJECT_NAME, PORT and DATASET_PROTECTED."
+	@test -n "$(DATASET)" || { echo "Usage: make adopt DATASET=<old dataset name>"; exit 1; }
+	$(PYTHON) scripts/estate_admin.py adopt $(DATASET)
 
 build: guard
 	$(COMPOSE) build
@@ -72,22 +52,18 @@ logs: guard
 shell: guard
 	$(COMPOSE) exec web /bin/bash
 
-# Load demo data. Refused on a protected dataset - seeds overwrite nothing by
-# accident only because this guard is here.
-seed: protected-guard
-	$(COMPOSE) exec web python scripts/$(or $(FILE),seed_example.py)
+# Load demo data into one estate. The script itself refuses a protected
+# estate; this target only makes you name it.
+seed: estate-guard
+	$(COMPOSE) exec web python scripts/$(or $(FILE),seed_example.py) --estate $(ESTATE)
 
-# Delete this dataset's database and rebuild it empty.
-wipe: protected-guard
-	@echo "This DELETES every record in dataset '$(DATASET)'."
-	@read -p "Type the dataset name to confirm: " reply; \
-		test "$$reply" = "$(DATASET)" || { echo "Cancelled."; exit 1; }
-	$(COMPOSE) exec web rm -f instance/estate.db
-	$(COMPOSE) exec web flask db upgrade
+# Empty one estate. Its old database moves to its backups/ folder; protected
+# estates are refused. Restart drops the workers' connections to the old file.
+wipe: estate-guard
+	$(COMPOSE) exec web python scripts/estate_admin.py wipe $(ESTATE)
 	$(COMPOSE) restart web
-	@echo "Dataset '$(DATASET)' is clean and empty."
 
-# Tests need no container and no dataset
+# Tests need no container and no estate
 test:
 	$(PYTHON) -m pytest tests/ -q
 

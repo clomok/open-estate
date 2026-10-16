@@ -147,3 +147,51 @@ def test_an_old_dataset_layout_is_refused_with_the_adopt_command(tmp_path):
     assert result.returncode == 1
     assert "estate_admin.py adopt" in result.stderr
     assert not (tmp_path / "estates.json").exists()
+
+
+def _admin(tmp_path, *args, input_=None):
+    env = dict(_env(tmp_path / "instance"), OE_CONFIG_DIR=str(tmp_path))
+    return subprocess.run([sys.executable, "scripts/estate_admin.py", *args], cwd=ROOT, env=env,
+                          capture_output=True, text=True, input=input_)
+
+
+def test_adopt_moves_an_old_dataset_and_its_settings_into_the_shared_layout(tmp_path):
+    from src import estates
+    old = tmp_path / "instance" / "family"
+    (old / "backups").mkdir(parents=True)
+    (old / "estate.db").write_bytes(b"real")
+    (old / "backups" / "estate-x.db").write_bytes(b"copy")
+    (tmp_path / "datasets").mkdir()
+    (tmp_path / "datasets" / "family.env").write_text(
+        "DATASET=family\nDATASET_LABEL=FAMILY - LIVE\nDATASET_PROTECTED=1\nPORT=5001\n"
+        "SECRET_KEY=s3cret\nADMIN_PASSWORD=pw\nDATABASE_URL=sqlite:////app/instance/estate.db\n")
+
+    r = _admin(tmp_path, "adopt", "family")
+    assert r.returncode == 0, r.stderr
+    new = tmp_path / "instance" / "estates" / "family"
+    assert (new / "estate.db").read_bytes() == b"real"          # moved, not copied
+    assert (new / "backups" / "estate-x.db").exists() and not old.exists()
+    entry = estates.get(str(tmp_path / "instance"), "family")
+    assert entry == {"slug": "family", "label": "FAMILY - LIVE", "protected": True}
+    site = (tmp_path / "datasets" / "site.env").read_text()
+    assert "SECRET_KEY=s3cret" in site and "PORT=5001" in site
+    assert "DATASET" not in site.replace("datasets/", "")
+    assert oct((tmp_path / "datasets" / "site.env").stat().st_mode)[-3:] == "600"
+    assert _admin(tmp_path, "adopt", "family").returncode == 1     # never twice
+
+
+def test_wipe_keeps_the_old_database_and_refuses_a_protected_estate(tmp_path):
+    root = tmp_path / "instance"
+    _install(root, ("demo", False), ("family", True))
+    assert subprocess.run([sys.executable, "scripts/seed_example.py", "--estate", "demo"],
+                          cwd=ROOT, env=_env(root), capture_output=True).returncode == 0
+    assert _admin(tmp_path, "wipe", "family", "--yes").returncode == 1
+    assert _admin(tmp_path, "wipe", "demo", input_="nope\n").returncode == 1   # typed name
+    r = _admin(tmp_path, "wipe", "demo", "--yes")
+    assert r.returncode == 0, r.stderr
+    backups = os.listdir(root / "estates" / "demo" / "backups")
+    assert any(b.endswith("-wiped.db") for b in backups)
+    engine = sa.create_engine(f"sqlite:///{root / 'estates' / 'demo' / 'estate.db'}")
+    with engine.connect() as conn:
+        assert conn.execute(sa.text("SELECT count(*) FROM holding")).scalar() == 0
+        assert conn.execute(sa.text("SELECT count(*) FROM playbook")).scalar() >= 1

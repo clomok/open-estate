@@ -1,13 +1,13 @@
-# One container per dataset. Everything that differs between datasets lives in
-# datasets/<name>.env, which is both the file Compose interpolates and the file
-# the container reads its environment from:
+# One container serves every estate. Which estates exist is the app's business
+# (instance/estates.json, managed from the sidebar dropdown); this file only
+# knows the site: one port, one login, one data folder.
 #
-#   docker compose --env-file datasets/demo.env up -d
+#   docker compose --env-file datasets/site.env up -d
 #
-# or, from the Makefile:  make up DATASET=demo
+# or, from the Makefile:  make up
 #
-# DATASET is deliberately required rather than defaulted: a typo should stop the
-# stack, not quietly start the wrong estate.
+# datasets/site.env is required rather than defaulted: without it the stack has
+# no password and no signing key, and should not start.
 services:
   web:
     build: .
@@ -19,7 +19,7 @@ services:
     # still non-root, and every file written stays readable, editable and
     # backup-able by the person who owns the directory.
     user: "${PUID:-1000}:${PGID:-1000}"
-    container_name: estate_${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}
+    container_name: ${CONTAINER_NAME:-open_estate}
     restart: unless-stopped
     # Loopback by default. A container that publishes 0.0.0.0 is reachable by
     # anything that can route to the host, and on a flat network with no
@@ -30,12 +30,11 @@ services:
     volumes:
       # Mount the current directory (.) to /app inside the container
       - .:/app
-      # Each dataset keeps its database in its own host directory. The path
-      # inside the container is identical for every dataset, so DATABASE_URL
-      # is the same everywhere and only this mount decides which estate loads.
-      - ./instance/${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}:/app/instance
+      # Every estate's database lives under instance/estates/<slug>/, with the
+      # registry beside it in instance/estates.json. See datasets/README.md.
+      - ./instance:/app/instance
     env_file:
-      - datasets/${DATASET:?DATASET is not set - run "make up DATASET=<name>". Upgrading an install that predates datasets? Run "make adopt DATASET=<name>" once, then retry. See datasets/README.md}.env
+      - datasets/site.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
       interval: 30s

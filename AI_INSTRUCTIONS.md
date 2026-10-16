@@ -27,22 +27,27 @@
 
 ```text
 open-estate-dashboard/
-├── ops.ps1                 # Master Operations script (Update, Wipe, Seed, Logs) - takes -Dataset
-├── Makefile                # Linux/Mac equivalent - every target takes DATASET=<name>
+├── ops.ps1                 # Master Operations script (Update, Wipe, Seed, Logs) - Wipe/Seed take -Estate
+├── Makefile                # Linux/Mac equivalent - seed/wipe take ESTATE=<slug>
 ├── .gitattributes          # Enforces LF line endings (Critical for Docker/Windows)
-├── compose.yaml            # Docker orchestration (Mounts .:/app, one container per dataset)
+├── compose.yaml            # Docker orchestration (Mounts .:/app, one container for every estate)
 ├── app.py                  # Application Factory + Custom Jinja Filters
 ├── datasets/
-│   ├── README.md           # How datasets work - read before touching deployment
-│   ├── demo.env.example    # Template for a dataset (the only one committed)
-│   └── <name>.env          # One per instance: port, secrets, label (GITIGNORED)
-├── instance/
-│   └── <name>/estate.db    # Per-dataset DB storage (GITIGNORED)
+│   ├── README.md           # How estates work - read before touching deployment
+│   ├── site.env.example    # Template for the site's settings (the only one committed)
+│   └── site.env            # Port, bind, login for the whole site (GITIGNORED)
+├── instance/               # (GITIGNORED)
+│   ├── estates.json        # The estate registry: slug, label, protected
+│   └── estates/<slug>/estate.db  # One SQLite file per estate
 ├── scripts/
+│   ├── upgrade_db.py       # Migrates every estate at start; --estate for one
+│   ├── estate_admin.py     # list / adopt / wipe
 │   ├── seed.py             # Personalized data seed
-│   └── seed_example.py     # Generic demo data seed
-├── tests/                  # pytest, in-memory DB, no container needed
+│   └── seed_example.py     # Generic demo data seed (--estate required)
+├── tests/                  # pytest, temp-dir estates, no container needed
 └── src/
+    ├── estates.py          # THE estate registry + the protected guard (stdlib only)
+    ├── extensions.py       # db: its only engine is the estate the URL names
     ├── models.py           # DB Schema (Person, Asset, Appraisal, RecurringBill, etc.)
     ├── forms.py            # Polymorphic WTForms
     ├── services/
@@ -67,26 +72,40 @@ open-estate-dashboard/
 
 ```
 
-## 3.5 Multi-Dataset Layout
+## 3.5 Several Estates, One App
 
-The app is single-tenant by design - a singleton `TrustProfile`, one
-`ADMIN_PASSWORD`, one `DATABASE_URL`. Several estates (demo, family, client)
-are therefore kept apart by running **separate containers**, not by adding
-tenant columns. No application code knows about datasets; it is a file per
-instance (`datasets/<name>.env`) and a mount per instance
-(`instance/<name>/` -> `/app/instance`).
+One running app holds several estates (demo, plus one per real trust),
+switched from the dropdown at the top of the sidebar. Each estate is its own
+SQLite file, `instance/estates/<slug>/estate.db`, listed in
+`instance/estates.json`. There are **no tenant columns**: within a request the
+app has exactly one database, so no query can see two estates. Full picture:
+`datasets/README.md`.
 
 Consequences to respect:
 
-- `DATASET` has **no default**. Compose fails loudly if it is unset.
-- `DATABASE_URL` is identical in every dataset. Do not make it dataset-specific -
-  the mount is the one thing that chooses an estate, and one place to get right
-  beats two.
-- `DATASET_PROTECTED=1` marks real data. `wipe` and `seed` refuse on it outright.
-- Never put real data in a seed script. Real data moves between instances
-  through **Settings -> Download Backup** and **Settings -> Restore**.
-- The sidebar badge (`DATASET_LABEL`) must stay visible on every page. It is the
-  thing that stops someone editing a real estate believing it is the demo.
+- **Estate pages live under `/e/<slug>/`.** The `main`, `manage` and
+  `settings` blueprints are registered with that prefix; `url_for` fills the
+  slug in from `g.estate` (`app.py`), so templates and routes never pass it by
+  hand. Do not move estate selection into the session: the URL is what keeps
+  two tabs on two estates from writing into each other.
+- **`db.engines` returns only `g.estate`'s engine** (`src/extensions.py`), and
+  raises `NoEstateSelected` when nothing is selected. A script that touches
+  data sets `g.estate = <slug>` inside its own `app.app_context()`, one
+  context per estate. Never default it.
+- **`protected` lives in `estates.json`.** Seed, wipe and restore call
+  `estates.require_unprotected` themselves; the Makefile and `ops.ps1` only
+  make you name the estate. Protect is one-way from the UI.
+- **Migrations run per estate.** `scripts/upgrade_db.py` migrates every
+  registered estate at container start; creating an estate runs it with
+  `--estate` in a subprocess (Alembic's logging config must not run inside a
+  gunicorn worker).
+- Never put real data in a seed script. Real data moves between estates and
+  installs through **Settings → Download Backup** and **Settings → Restore**.
+- The dropdown must stay visible on every page and name the estate on screen.
+  It is the thing that stops someone editing a real estate believing it is
+  the demo. A protected estate renders it in the warm `dataset-badge-live`
+  style.
+- One login opens every estate on a site.
 
 ## 4. Current Feature Status
 
@@ -120,9 +139,9 @@ Consequences to respect:
 - **Durability:**
 - Backup (JSON/HTML) & Restore, covering **every** table including association rows.
 - Single source of truth: `src/services/backup_schema.py`.
-- **Multi-Dataset:**
-- One container per estate; own DB, port, password and sidebar badge.
-- Destructive ops refuse on a dataset marked `DATASET_PROTECTED=1`.
+- **Several estates:**
+- One app, one SQLite file per estate, switched from the sidebar dropdown; new estates created there.
+- Seed, wipe and restore refuse an estate marked protected in `instance/estates.json`.
 - **Trust Profile (Phase 6):**
 - **New "Details" Page:** High-level trust configuration.
 - **Sensitivity Controls:** "Estimated Death Date" is hidden by default (toggleable).
@@ -141,7 +160,7 @@ Consequences to respect:
 
 - [ ] Email / push digest of the Now page. Not decided. What it would need:
   a cron entry calling a script that builds `events.now_sections()` for
-  today, an SMTP setting per dataset, and a "sent" record so a digest is not
+  today, an SMTP setting per site, and a "sent" record so a digest is not
   repeated. The feeds already compute everything a digest would say.
 
 3. **Transition Protocol:**
@@ -152,11 +171,11 @@ Consequences to respect:
 ## 4.5 Non-Negotiables When Changing the Schema
 
 **1. Every schema change is an Alembic migration. Never wipe and recreate.**
-A dataset marked `DATASET_PROTECTED=1` holds a family's real estate; it can
-only ever move forward by migration. The container runs
-`scripts/upgrade_db.py` before gunicorn on every start: it copies the database
-to `instance/backups/` and then runs `flask db upgrade`, so deploying a change
-*is* applying its migration.
+A protected estate holds a family's real data; it can only ever move forward
+by migration. The container runs `scripts/upgrade_db.py` before gunicorn on
+every start: for each estate it copies the database to that estate's
+`backups/` folder and then runs `flask db upgrade`, so deploying a change *is*
+applying its migration to every estate.
 
 ```bash
 # after editing src/models.py, inside the container or a dev venv:
@@ -194,7 +213,7 @@ make test
 
 ## 5. Database Schema Key Points (v4)
 
-- **Entity:** exactly one root per dataset, `kind = trust`, `is_root = 1`
+- **Entity:** exactly one root per estate, `kind = trust`, `is_root = 1`
   (enforced in the database). It carries the trust's name, dates, review
   schedule and transition dates; the Trust page edits it. Other kinds
   (`corporation`, `llc`, `retirement_account`, `individual`) are optional
@@ -247,37 +266,34 @@ make test
 
 ## 6. Operational Commands (Cheatsheet)
 
-Every command names its dataset. There is no default.
+One stack serves every estate. Only seed and wipe act on one estate's data,
+and they must name it - there is no default.
 
 **Using the Ops Manager (Windows, Recommended):**
 
 ```powershell
-.\ops.ps1 -Dataset demo
+.\ops.ps1
 # Menu Options:
 # 1. Update (Rebuild container)
-# 5. Wipe DB (empties a DEMO dataset - never needed for a schema change;
-#    restarting the container applies new migrations)
-# 6. Seed (Loads data from scripts/)
+# 5. Wipe (empties ONE demo estate - never needed for a schema change;
+#    restarting the container applies new migrations to every estate)
+# 6. Seed (Loads data from scripts/ into ONE estate)
 #
-# 5 and 6 refuse outright on a dataset with DATASET_PROTECTED=1.
-
-
-
+# 5 and 6 ask which estate, and refuse outright on a protected one.
+.\ops.ps1 -Run adopt -Estate demo   # once, to move an old dataset folder in
 ```
 
 **Using the Makefile (Linux/Mac):**
 
 ```bash
-make list                    # what datasets exist here
-make new DATASET=demo        # create one from the template
-make up DATASET=demo         # start it
-make logs DATASET=demo
-make shell DATASET=demo
-make wipe DATASET=demo       # confirms by typing the dataset name
-make test                    # no container, no dataset
-
-
-
+make up                      # start the stack (needs datasets/site.env)
+make logs
+make shell
+make estates                 # list the estates here
+make seed ESTATE=demo        # refused on a protected estate
+make wipe ESTATE=demo        # confirms by typing the estate name
+make adopt DATASET=<old>     # once per old instance/<old>/ folder, stack stopped
+make test                    # no container, no estate
 ```
 
 **Recovering a broken container:**
@@ -286,8 +302,9 @@ make test                    # no container, no dataset
 # Rebuild the schema from the tracked migration history. Do NOT delete
 # migrations/ and regenerate it - 'flask db upgrade' is what depends on it,
 # and throwing it away is what the old wipe routine used to do.
-make shell DATASET=demo
-flask db upgrade
+make shell
+python scripts/upgrade_db.py            # every estate
+python scripts/upgrade_db.py --estate demo
 
 
 
@@ -295,4 +312,4 @@ flask db upgrade
 
 ---
 
-_Last Updated: Phase B timeline engine (event / feeds / playbooks, Now page, backup v4)._
+_Last Updated: several estates in one app (estate dropdown, /e/<slug>/ URLs, estates.json)._

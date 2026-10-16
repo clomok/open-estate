@@ -42,40 +42,43 @@ This project was born out of a need for a simple, resilient system to organize f
     cd open-estate
     ```
 
-2.  **Create a dataset:**
+2.  **Create the site settings:**
 
-    Each estate runs as its own instance, defined by one file in `datasets/`.
-    See [`datasets/README.md`](datasets/README.md) for the full picture.
+    One app holds every estate (a demo set and one per trust). Its settings
+    live in one file. See [`datasets/README.md`](datasets/README.md) for the full picture.
 
     ```bash
-    make new DATASET=demo        # copies the template, creates instance/demo/
-    # Edit datasets/demo.env: set a unique PORT, SECRET_KEY and ADMIN_PASSWORD
+    cp datasets/site.env.example datasets/site.env
+    # Edit it: set a fresh SECRET_KEY and ADMIN_PASSWORD (and PORT if 5000 is taken)
     ```
 
 3.  **Run the App (Windows):**
     Use the included operations script:
 
     ```powershell
-    .\ops.ps1 -Dataset demo
+    .\ops.ps1
     # Select Option 1 (Update) to build and start the container
     ```
 
     **Run the App (Linux/Mac):**
 
     ```bash
-    make up DATASET=demo
+    make up
     ```
 
 4.  **Access:**
-    Open your browser to the `PORT` set in `datasets/demo.env` (5000 by default).
-    The sidebar shows which dataset you are looking at.
+    Open your browser to the `PORT` set in `datasets/site.env` (5000 by default).
+    The dropdown at the top of the sidebar shows which estate you are looking at,
+    switches to another, and creates new ones. A fresh install starts with an
+    empty `demo` estate; `make seed ESTATE=demo` fills it with the example family.
 
-> Upgrading an install from before datasets existed? Run `make adopt DATASET=<name>`
-> — the stack will refuse to start until the dataset file exists.
+> Upgrading an install that ran one container per dataset? Stop it and run
+> `make adopt DATASET=<name>` once per dataset - the new container refuses the
+> old layout until you do.
 
 ## ✅ Tests
 
-No container needed — the suite runs against an in-memory database:
+No container needed — the suite builds its estates in a temp folder:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -86,11 +89,11 @@ make test
 
 - [x] **Secure Infrastructure:** Non-root Docker container with Authentication.
 - [x] **Ledger:** Any asset, liability or equity stake - built-in types per side plus a Custom type whose fields you name. Money in exact cents; net worth = assets − liabilities.
-- [x] **The trust at the root:** One trust per dataset holds everything; LLCs, corporations, retirement accounts and personal holdings attach to it as add-ons.
+- [x] **The trust at the root:** One trust per estate holds everything; LLCs, corporations, retirement accounts and personal holdings attach to it as add-ons.
 - [x] **Beneficiary shares:** Who inherits what percentage of each holding, by trust schedule, account TOD or will, with totals that flag anything short of 100%.
 - [x] **Migrations, not wipes:** The container migrates its database on start and keeps a copy of the file first.
 - [x] **Durability Layer:** JSON/HTML Backup & Restore system, covering every table.
-- [x] **Multiple Estates:** One container per dataset — separate database, port, password and badge.
+- [x] **Multiple Estates:** One app, one database file per estate, switched from the sidebar dropdown — demo data and real trusts side by side, each real one protected from seed, wipe and restore.
 - [ ] **Logic Engine:** Automated health checks (e.g., "Warn if Asset has no Beneficiary").
 - [ ] **Document Storage:** Secure local upload for PDF trust documents.
 - [ ] **Transition Protocol:** "In Case of Emergency" view for Trustees.
