@@ -238,6 +238,8 @@ code { font-size: 0.9em; background: var(--parchment-deep); padding: 0.05rem 0.3
 .sidebar-foot { margin-top: auto; padding-top: 1.25rem; border-top: 1px solid rgba(230, 220, 200, 0.16); }
 
 .main-content { flex-grow: 1; padding: 2.25rem 2.5rem 3rem; min-width: 0; }
+/* Layout that depends on the room left beside the sidebar asks the column, not the screen. */
+.main-content { container: main / inline-size; }
 .page { max-width: 1100px; margin: 0 auto; }
 .page-narrow { max-width: 760px; margin: 0 auto; }
 .page-form { max-width: 640px; margin: 0 auto; }
@@ -709,7 +711,7 @@ button.menu-item { width: 100%; text-align: left; background: none; border: none
     .jump-bar { top: 3.9rem; }
     .hsec { scroll-margin-top: 8.5rem; }
 }
-@media (max-width: 700px) {
+@container main (max-width: 700px) {
     .holding-mast { flex-direction: column; gap: 0.9rem; }
     .holding-mast h1 { font-size: 1.8rem; }
     .mast-side { align-items: stretch; text-align: left; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: space-between; }
@@ -723,8 +725,9 @@ button.menu-item { width: 100%; text-align: left; background: none; border: none
 }
 
 /* One table-to-cards mechanism for every table on a phone: each row becomes a
-   card and each cell prints its data-label as a small-capital label. */
-@media (max-width: 640px) {
+   card and each cell prints its data-label as a small-capital label. Measured
+   on the content column, so a tablet beside the sidebar stacks too. */
+@container main (max-width: 640px) {
     .table-wrap .data-table.is-stacking { min-width: 0; }
     .data-table.is-stacking, .data-table.is-stacking tbody { display: block; background: none; border: none; box-shadow: none; overflow: visible; }
     .data-table.is-stacking thead { display: none; }
