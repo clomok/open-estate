@@ -32,8 +32,8 @@
                 <div id="menu-{{ h.id }}" class="menu-dropdown">
                     <a href="{{ url_for('main.holding_details', id=h.id) }}" class="menu-item">View details</a>
                     <a href="{{ url_for('manage.edit_holding', id=h.id) }}" class="menu-item">Edit</a>
-                    <a href="{{ url_for('manage.delete_holding', id=h.id) }}" class="menu-item danger"
-                       onclick="return confirm('Delete {{ h.name|e }}? Its valuations, bills and shares go with it.');">Delete</a>
+                    <form method="POST" action="{{ url_for('manage.delete_holding', id=h.id) }}" class="inline-form"
+                          onsubmit="return confirm('Delete {{ h.name|e }}? Its valuations, bills and shares go with it.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="menu-item danger">Delete</button></form>
                 </div>
             </div>
 

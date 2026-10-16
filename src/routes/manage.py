@@ -214,8 +214,8 @@ def edit_holding(id):
                            title=f"Edit {holding.name}", active_page='assets')
 
 
-@bp.route('/holding/delete/<int:id>')
-@bp.route('/asset/delete/<int:id>')
+@bp.route('/holding/delete/<int:id>', methods=['POST'])
+@bp.route('/asset/delete/<int:id>', methods=['POST'])
 @login_required
 def delete_holding(id):
     holding = Holding.query.get_or_404(id)
@@ -424,7 +424,7 @@ def edit_person(id):
                            title="Edit Contact", active_page='contacts')
 
 
-@bp.route('/contact/delete/<int:id>')
+@bp.route('/contact/delete/<int:id>', methods=['POST'])
 @login_required
 def delete_person(id):
     person = Person.query.get_or_404(id)
@@ -497,7 +497,7 @@ def manage_subitem(id, subitem_type):
                            holding=holding, subitem_type=subitem_type, active_page='assets')
 
 
-@bp.route('/holding/<int:holding_id>/<string:subitem_type>/<int:item_id>/delete')
+@bp.route('/holding/<int:holding_id>/<string:subitem_type>/<int:item_id>/delete', methods=['POST'])
 @login_required
 def delete_subitem(holding_id, subitem_type, item_id):
     cfg = SUBITEMS.get(subitem_type)
@@ -615,8 +615,11 @@ def _event_from_form(event, form):
 
 def _back(default):
     nxt = request.values.get('next') or ''
-    # Only ever bounce back inside this app.
-    return nxt if nxt.startswith('/') and not nxt.startswith('//') else default
+    # Only ever bounce back inside this app. Browsers read a backslash as a
+    # slash, so "/\evil.example" is as off-site as "//evil.example".
+    if not nxt.startswith('/') or nxt[1:2] in ('/', '\\') or any(c < ' ' for c in nxt):
+        return default
+    return nxt
 
 
 @bp.route('/event/new', methods=['GET', 'POST'])

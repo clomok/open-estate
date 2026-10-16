@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from flask import current_app, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -51,6 +52,9 @@ class EstateSQLAlchemy(SQLAlchemy):
 # We define these here so other files can import them without creating loops
 db = EstateSQLAlchemy()
 migrate = Migrate()
+# Every POST is checked, not just FlaskForms: the small verify / remove / restore
+# forms post raw fields, and restore wipes an estate.
+csrf = CSRFProtect()
 
 
 @event.listens_for(Engine, "connect")

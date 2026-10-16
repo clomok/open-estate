@@ -241,7 +241,7 @@ def test_a_person_can_hold_several_roles(client, estate):
 
 
 def test_deleting_a_beneficiary_is_refused_while_they_have_shares(client, estate):
-    client.get("/e/test/manage/contact/delete/2")
+    client.post("/e/test/manage/contact/delete/2")
     assert estate.session.get(Person, 2) is not None
 
 

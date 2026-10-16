@@ -7,6 +7,10 @@ out, and nothing in between does arithmetic on a float.
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
+# Ten trillion dollars. Well past any estate, and well inside SQLite's 64-bit
+# integer, so a stray keystroke ("1e30") is refused instead of overflowing.
+MAX_CENTS = 10 ** 15
+
 
 def to_cents(value):
     """Dollars (number or text like "$1,250.50") -> int cents. None/"" -> None.
@@ -28,6 +32,9 @@ def to_cents(value):
             raise ValueError(f"'{value}' is not an amount")
     if not amount.is_finite():
         raise ValueError(f"'{value}' is not an amount")
+    # Checked before quantize, which itself raises past 28 digits.
+    if abs(amount * 100) > MAX_CENTS:
+        raise ValueError(f"'{value}' is too large an amount")
     return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 

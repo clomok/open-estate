@@ -1,9 +1,11 @@
+import math
 from datetime import date
 
 from flask_wtf import FlaskForm
 from wtforms import (StringField, SelectField, FloatField, BooleanField, SubmitField,
                      TextAreaField, DateField, SelectMultipleField, IntegerField)
-from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
+from wtforms.validators import (DataRequired, InputRequired, Length, NumberRange, Optional,
+                                ValidationError)
 from wtforms.widgets import ListWidget, CheckboxInput
 
 from src.holding_types import parse_field, FREQUENCIES
@@ -26,14 +28,23 @@ class MoneyField(StringField):
         if valuelist:
             try:
                 self.data = to_cents(valuelist[0])
-            except ValueError:
+            except ValueError as e:
                 self.data = None
+                if "too large" in str(e):
+                    raise ValueError("That amount is too large.")
                 raise ValueError("Enter an amount, e.g. 1250 or 1,250.50")
 
 
 def _not_negative(form, field):
     if field.data is not None and field.data < 0:
         raise ValidationError("Enter the amount as a positive number.")
+
+
+def _finite(form, field):
+    # float() takes "nan" and "inf", and NaN slips past NumberRange because
+    # every comparison with it is false. SQLite then stores NaN as NULL.
+    if field.data is not None and not math.isfinite(field.data):
+        raise ValidationError("Enter a number.")
 
 
 # --- Holdings --------------------------------------------------------------
@@ -45,7 +56,7 @@ class HoldingForm(FlaskForm):
     value = MoneyField('Value', validators=[Optional(), _not_negative])
     entity_id = SelectField('Held by', coerce=int, validators=[Optional()])
     owner_id = SelectField('Individual owner', coerce=int, validators=[Optional()])
-    ownership_pct = FloatField('Ownership %', validators=[Optional(), NumberRange(0, 100)])
+    ownership_pct = FloatField('Ownership %', validators=[Optional(), _finite, NumberRange(0, 100)])
     secured_by_id = SelectField('Secured by', coerce=int, validators=[Optional()])
     notes = TextAreaField('Notes')
     submit = SubmitField('Save')
@@ -90,7 +101,7 @@ def build_holding_form(htype):
 
 class ValuationForm(FlaskForm):
     date = DateField('Date of valuation', default=date.today, validators=[DataRequired()])
-    value = MoneyField('New value ($)', validators=[DataRequired(), _not_negative])
+    value = MoneyField('New value ($)', validators=[InputRequired(), _not_negative])
     source = StringField('Source (e.g. Zillow, KBB, Statement)', validators=[Length(max=100)])
     notes = TextAreaField('Notes')
     submit = SubmitField('Add valuation')
@@ -98,7 +109,7 @@ class ValuationForm(FlaskForm):
 
 class DesignationForm(FlaskForm):
     person_id = SelectField('Beneficiary', coerce=int, validators=[DataRequired()])
-    percentage = FloatField('Share %', validators=[DataRequired(), NumberRange(0.01, 100)])
+    percentage = FloatField('Share %', validators=[InputRequired(), _finite, NumberRange(0.01, 100)])
     kind = SelectField('Designated by', choices=[(k, DESIGNATION_KIND_LABELS[k])
                                                 for k in DESIGNATION_KINDS])
     notes = StringField('Notes', validators=[Optional(), Length(max=500)])
@@ -139,8 +150,10 @@ class StructureForm(FlaskForm):
 class LocationPointForm(FlaskForm):
     label = StringField('Label', validators=[DataRequired()], render_kw={"placeholder": "e.g. Septic Tank Lid"})
     description = TextAreaField('Description', render_kw={"placeholder": "e.g. Buried 6 inches deep..."})
-    latitude = FloatField('Latitude', validators=[DataRequired()])
-    longitude = FloatField('Longitude', validators=[DataRequired()])
+    # InputRequired, not DataRequired: 0 is the equator / prime meridian.
+    latitude = FloatField('Latitude', validators=[InputRequired(), _finite, NumberRange(-90, 90)])
+    longitude = FloatField('Longitude', validators=[InputRequired(), _finite,
+                                                    NumberRange(-180, 180)])
     submit = SubmitField('Save pin')
 
 
@@ -181,6 +194,16 @@ class TrustProfileForm(FlaskForm):
 
     notes = TextAreaField('Trust notes', render_kw={"rows": 5})
     submit = SubmitField('Save trust details')
+
+    def validate_date_death_actual(self, field):
+        # Setting this offers the transition playbook, so a slip of the year
+        # would schedule a death that has not happened.
+        if field.data is None:
+            return
+        if field.data > date.today():
+            raise ValidationError("The date of passing cannot be in the future.")
+        if self.date_established.data and field.data < self.date_established.data:
+            raise ValidationError("The date of passing is before the trust was established.")
 
 
 class EntityForm(FlaskForm):

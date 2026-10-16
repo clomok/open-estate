@@ -40,6 +40,7 @@
             {% endwith %}
 
             <form method="post" action="{{ url_for('settings.upload_backup') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="file" name="backup_file" accept=".zip,.json" required style="margin-bottom: 0.75rem;">
                 <br>
                 <button type="submit" class="btn-warn" style="background: var(--bronze); border-color: var(--bronze);">Overwrite &amp; restore</button>

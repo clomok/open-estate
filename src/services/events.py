@@ -117,7 +117,7 @@ def apply_filters(rows, kinds=None, phases=None, assignee=None, entity=None):
             continue
         if assignee == "none" and r.assignee_id is not None:
             continue
-        if assignee not in (None, "", "none") and r.assignee_id != int(assignee):
+        if assignee not in (None, "", "none") and str(r.assignee_id) != str(assignee):
             continue
         if entity and r.entity_id != int(entity):
             continue
@@ -166,7 +166,11 @@ def materialise(key, today=None):
     derived item nobody has touched yet."""
     today = today or date.today()
     if key.startswith("event:"):
-        event = db.session.get(Event, int(key.split(":", 1)[1]))
+        try:
+            event_id = int(key.split(":", 1)[1])
+        except ValueError:
+            raise NotFound(key)
+        event = db.session.get(Event, event_id)
         if event is None:
             raise NotFound(key)
         return event
@@ -199,8 +203,20 @@ def complete(key, today=None):
     spawned = None
     if event.repeats:
         base = event.date or today
+        next_date = add_interval(base, event.repeat_every, event.repeat_unit)
+        # Done, reopened, done again: the next occurrence already exists from
+        # the first time, so a second one would be a duplicate.
+        already = Event.query.filter(
+            Event.id != event.id, Event.title == event.title, Event.kind == event.kind,
+            Event.date == next_date, Event.holding_id == event.holding_id,
+            Event.entity_id == event.entity_id, Event.person_id == event.person_id,
+            Event.repeat_every == event.repeat_every, Event.repeat_unit == event.repeat_unit,
+        ).first()
+        if already is not None:
+            db.session.flush()
+            return event, None
         spawned = Event(kind=event.kind, title=event.title,
-                        date=add_interval(base, event.repeat_every, event.repeat_unit),
+                        date=next_date,
                         assignee_id=event.assignee_id, phase=event.phase,
                         description=event.description, holding_id=event.holding_id,
                         entity_id=event.entity_id, person_id=event.person_id,

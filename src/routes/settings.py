@@ -65,14 +65,19 @@ def upload_backup():
         # Let's try to detect.
         content = None
         
-        if file.filename.endswith('.zip'):
-            with zipfile.ZipFile(file) as z:
-                # Find the json file inside
-                for name in z.namelist():
-                    if name.endswith('.json'):
-                        content = z.read(name)
-                        break
-        elif file.filename.endswith('.json'):
+        name = file.filename.lower()
+        if name.endswith('.zip'):
+            try:
+                with zipfile.ZipFile(file) as z:
+                    # Find the json file inside
+                    for member in z.namelist():
+                        if member.lower().endswith('.json'):
+                            content = z.read(member)
+                            break
+            except zipfile.BadZipFile:
+                flash("That .zip file is damaged or is not a zip file. Nothing was changed.")
+                return redirect(url_for('settings.index'))
+        elif name.endswith('.json'):
             content = file.read()
             
         if content:

@@ -228,7 +228,7 @@
                 <div class="small is-asset">Last maintained: {{ item.date_last_maintained }}</div>
                 {% endif %}
                 <div class="right" style="margin-top: 1rem; border-top: 1px solid var(--parchment-deep); padding-top: 0.5rem;">
-                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" class="btn-danger-text" onclick="return confirm('Delete?')">Remove</a>
+                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" class="inline-form" onsubmit="return confirm('Delete?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Remove</button></form>
                 </div>
             </div>
             {% else %}
@@ -253,7 +253,7 @@
                     <td>{{ pin.description or '' }}</td>
                     <td><a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" rel="noopener">Open map</a></td>
                     <td class="right">
-                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" class="icon-btn danger" onclick="return confirm('Delete pin?')">×</a>
+                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" class="inline-form" onsubmit="return confirm('Delete pin?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger">×</button></form>
                     </td>
                 </tr>
                 {% else %}
@@ -307,7 +307,7 @@
                     <td class="figure">{{ bill.amount_cents | currency }}</td>
                     <td class="nowrap">{{ bill.next_due_date or '-' }}</td>
                     <td class="right">
-                        <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="icon-btn danger" onclick="return confirm('Remove bill?')">×</a>
+                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="inline-form" onsubmit="return confirm('Remove bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger">×</button></form>
                     </td>
                 </tr>
                 {% else %}
@@ -331,7 +331,7 @@
                 <div class="small"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
                 {% if link.notes %}<div class="person-note">{{ link.notes }}</div>{% endif %}
                 <div class="right" style="margin-top: 1rem;">
-                    <a href="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="btn-danger-text" onclick="return confirm('Unassign?')">Unassign</a>
+                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="inline-form" onsubmit="return confirm('Unassign?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Unassign</button></form>
                 </div>
             </div>
             {% else %}

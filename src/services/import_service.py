@@ -85,6 +85,17 @@ def restore_from_json(json_content):
         from src.services.estate import check_single_root
         check_single_root()
 
+        # The forms refuse a bad holding detail; a backup must not sneak one
+        # in. A hand-edited file with "$1,200" in a money field would restore
+        # cleanly and then break every page that shows that holding.
+        from src.models import Holding
+        from src.holding_types import validate_attributes
+        for h in Holding.query.all():
+            if h.htype is not None:
+                problems = validate_attributes(h.htype, h.attributes)
+                if problems:
+                    raise ValueError(f"holding {h.id} ({h.name}): " + "; ".join(problems))
+
         db.session.commit()
         msg = f"Restore Successful ({restored} records)"
         if upgraded_from:

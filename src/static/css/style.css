@@ -591,6 +591,8 @@ code { font-size: 0.9em; background: var(--parchment-deep); padding: 0.05rem 0.3
 .menu-item { display: block; padding: 0.65rem 1rem; color: var(--ink); text-decoration: none; font-size: 0.9rem; }
 .menu-item:hover { background: var(--parchment); }
 .menu-item.danger { color: var(--oxblood); }
+button.menu-item { width: 100%; text-align: left; background: none; border: none; font: inherit; font-size: 0.9rem; cursor: pointer; }
+.inline-form { display: inline; margin: 0; }
 .menu-item.danger:hover { background: var(--oxblood-soft); }
 
 /* Holding detail page */

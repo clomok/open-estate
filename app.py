@@ -1,6 +1,6 @@
 from flask import Flask
 from config import Config
-from src.extensions import db, migrate
+from src.extensions import db, migrate, csrf
 
 def create_app(config_class=Config):
     app = Flask(__name__, template_folder='src/templates', static_folder='src/static')
@@ -12,6 +12,17 @@ def create_app(config_class=Config):
     # Init extensions
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
+
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def csrf_expired(e):
+        # Usually a page left open past its token's life. Nothing was saved.
+        from flask import flash, redirect, request as req
+        flash('That form had expired, so nothing was saved. Please try again.', 'error')
+        return redirect(req.referrer if req.referrer and req.referrer.startswith(req.host_url)
+                        else '/'), 303
     
     # Import models so Alembic can detect them
     from src import models

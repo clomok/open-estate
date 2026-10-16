@@ -13,10 +13,11 @@ Adding a built-in type is one entry below. Adding a type nobody anticipated
 needs no code at all: every side has `custom`, whose fields the user names.
 """
 
+import math
 from dataclasses import dataclass, field as dc_field, replace
 from datetime import date
 
-from src.money import to_cents, format_cents, cents_to_input
+from src.money import MAX_CENTS, to_cents, format_cents, cents_to_input
 
 SIDES = ("asset", "liability", "equity")
 
@@ -247,6 +248,8 @@ def parse_field(field, raw):
             n = float(text)
         except ValueError:
             raise ValueError(f"'{raw}' is not a number")
+        if not math.isfinite(n):
+            raise ValueError(f"'{raw}' is not a number")
         if field.type == "percent" and not 0 <= n <= 100:
             raise ValueError(f"{n} is not a percentage between 0 and 100")
         return int(n) if n.is_integer() else n
@@ -264,9 +267,11 @@ def parse_field(field, raw):
 def _stored_ok(field, value):
     try:
         if field.type == "money":
-            return isinstance(value, int) and not isinstance(value, bool)
+            return (isinstance(value, int) and not isinstance(value, bool)
+                    and abs(value) <= MAX_CENTS)
         if field.type in ("number", "percent"):
-            return isinstance(value, (int, float)) and not isinstance(value, bool)
+            return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                    and parse_field(field, value) == value)
         return parse_field(field, value) == value
     except ValueError:
         return False

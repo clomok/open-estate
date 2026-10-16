@@ -19,6 +19,7 @@
             {% endif %}
         {% endwith %}
         <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="password" name="password" placeholder="Password" aria-label="Password" required autofocus>
             <button type="submit" class="btn-primary">Open the binder</button>
         </form>

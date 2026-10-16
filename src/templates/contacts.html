@@ -6,8 +6,8 @@
 <div class="card-tools">
     <a href="{{ url_for('manage.create_event', person_id=person.id, next=url_for('main.contacts_view')) }}" class="icon-btn" title="Add an event about {{ person.name }}">📅</a>
     <a href="{{ url_for('manage.edit_person', id=person.id) }}" class="icon-btn" title="Edit">✎</a>
-    <a href="{{ url_for('manage.delete_person', id=person.id) }}" class="icon-btn danger" title="Delete"
-       onclick="return confirm('Delete this contact?');">&times;</a>
+    <form method="POST" action="{{ url_for('manage.delete_person', id=person.id) }}" class="inline-form"
+          onsubmit="return confirm('Delete this contact?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger" title="Delete">&times;</button></form>
 </div>
 {% endmacro %}
 
