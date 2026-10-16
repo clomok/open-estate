@@ -3,11 +3,13 @@ import json
 from src.extensions import db
 from src.services.backup_codec import parent_first, row_kwargs
 from src.services.backup_schema import BACKUP_MODELS, BACKUP_TABLES, SELF_REFERENCES
-from src.services import v2_upgrade
+from src.services import v2_upgrade, v3_upgrade
 
 # Keys only an asset-era (v1/v2) backup has. Seeing any of them means the
 # file goes through the v2 -> v3 converter before it is restored.
 _LEGACY_KEYS = {"assets", "appraisals", "trust_profile", "asset_beneficiaries"}
+# Keys a v3 backup has that v4 replaced with `events`.
+_V3_KEYS = {"tasks", "milestones"}
 
 
 def _major_version(data):
@@ -18,13 +20,21 @@ def _major_version(data):
 
 
 def upgrade_payload(data):
-    """Any supported backup dict -> the current (v3) layout."""
+    """Any supported backup dict -> the current (v4) layout, one step at a
+    time: v1/v2 -> v3 -> v4. Each step is frozen once released."""
     major = _major_version(data)
-    if major is not None and major >= 3:
-        return data
-    if major is None and not (_LEGACY_KEYS & set(data)):
-        return data
-    return v2_upgrade.convert(data)
+    if major is None:
+        if _LEGACY_KEYS & set(data):
+            major = 2
+        elif _V3_KEYS & set(data):
+            major = 3
+        else:
+            return data
+    if major < 3:
+        data, major = v2_upgrade.convert(data), 3
+    if major == 3:
+        data = v3_upgrade.convert(data)
+    return data
 
 
 def restore_from_json(json_content):

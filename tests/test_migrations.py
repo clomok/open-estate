@@ -61,7 +61,7 @@ def _load_v2_rows(engine):
 
 def test_a_v2_database_upgrades_with_every_row(file_app):
     from src.models import (Entity, Holding, Person, Valuation, BeneficiaryDesignation,
-                            RecurringBill, Task)
+                            RecurringBill, Event, Playbook)
     upgrade(directory=MIGRATIONS, revision=BASELINE)
     _load_v2_rows(_db.engine)
 
@@ -80,10 +80,14 @@ def test_a_v2_database_upgrades_with_every_row(file_app):
     share = s.query(BeneficiaryDesignation).one()
     assert (share.holding_id, share.person_id, share.percentage) == (10, 2, 65.0)
     assert s.get(RecurringBill, 70).amount_cents == 820000
-    assert s.get(Task, 30).holding_id == 11
+    task = s.get(Event, 30)
+    assert (task.kind, task.holding_id) == ("task", 11)
+    assert s.query(Event).filter_by(kind="milestone").count() == 1
+    assert s.query(Playbook).one().trigger == "death_of_trustor"
     assert s.get(Person, 1).role_codes == ["Trustor"]
     old = set(sa.inspect(_db.engine).get_table_names())
-    assert not old & {"asset", "appraisal", "trust_profile", "asset_beneficiaries", "asset_vendor"}
+    assert not old & {"asset", "appraisal", "trust_profile", "asset_beneficiaries",
+                      "asset_vendor", "task", "milestone"}
 
 
 def test_an_empty_database_upgrades_to_one_root_trust(file_app):
@@ -91,6 +95,8 @@ def test_an_empty_database_upgrades_to_one_root_trust(file_app):
     upgrade(directory=MIGRATIONS, revision="head")
     roots = _db.session.query(Entity).filter_by(is_root=True).all()
     assert [(r.kind, r.name) for r in roots] == [("trust", "The Family Trust")]
+    from src.models import Playbook
+    assert [p.trigger for p in _db.session.query(Playbook)] == ["death_of_trustor"]
 
 
 def test_migrations_build_exactly_the_model_schema(file_app):

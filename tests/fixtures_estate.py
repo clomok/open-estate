@@ -10,15 +10,16 @@ from datetime import date
 from src.models import (
     BeneficiaryDesignation,
     Entity,
+    Event,
     Holding,
     HoldingVendor,
     LocationPoint,
-    Milestone,
     Person,
     PersonRole,
+    Playbook,
+    PlaybookStep,
     PropertyStructure,
     RecurringBill,
-    Task,
     Valuation,
 )
 from src.services.backup_schema import BACKUP_MODELS, BACKUP_TABLES
@@ -79,12 +80,18 @@ def _populate(db):
                                kind="trust_schedule"),
         Valuation(id=20, holding_id=10, date=date(2025, 4, 1), value_cents=74000000,
                   source="Zillow", notes="Pre-renovation"),
-        Task(id=30, title="Retitle the coupe", status="Pending",
-             due_date=date(2026, 3, 15), is_recurring=False, holding_id=11),
-        Task(id=31, title="Annual trust review", status="Done",
-             due_date=date(2026, 1, 5), is_recurring=True, holding_id=None),
-        Milestone(id=40, title="Trust funded", date_event=date(2024, 6, 1),
-                  description="All assets retitled", is_completed=True),
+        Event(id=30, kind="task", title="Retitle the coupe", date=date(2026, 3, 15),
+              holding_id=11, assignee_id=1, phase="now"),
+        Event(id=31, kind="review", title="Annual trust review", date=date(2026, 1, 5),
+              done_at=date(2026, 1, 6), entity_id=1, phase="planning",
+              repeat_every=1, repeat_unit="year"),
+        Event(id=32, kind="milestone", title="Trust funded", date=date(2024, 6, 1),
+              done_at=date(2024, 6, 1), description="All assets retitled",
+              phase="planning", person_id=2),
+        Event(id=33, kind="deadline", title="Property tax", date=date(2025, 11, 1),
+              done_at=date(2025, 10, 20), source="bill:70@2025-11-01", holding_id=10),
+        Playbook(id=1, name="When a trustor dies", trigger="death_of_trustor",
+                 description="Test playbook"),
         PropertyStructure(id=50, holding_id=10, name="North Garden Shed",
                           structure_type="Outbuilding", description="Tools",
                           date_built=date(2011, 5, 2),
@@ -101,6 +108,14 @@ def _populate(db):
                       payee="Example Mutual", amount_cents=60000, frequency="Annual"),
         HoldingVendor(id=80, holding_id=10, person_id=3, role="Plumber",
                       notes="Knows where the main shutoff is"),
+    ])
+    db.session.flush()
+    db.session.add_all([
+        PlaybookStep(id=1, playbook_id=1, position=0, offset_days=0, kind="task",
+                     title="Get a pronouncement of death", who_role="SuccessorTrustee",
+                     instructions="Call hospice or 911.", document_type="POLST"),
+        PlaybookStep(id=2, playbook_id=1, position=1, offset_days=270, kind="deadline",
+                     title="Estate tax return", who_role="Accountant"),
     ])
     db.session.commit()
 

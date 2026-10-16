@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from flask import url_for
-from src.models import Milestone, Task, RecurringBill, Holding, PropertyStructure
+from src.models import Event, RecurringBill, Holding, PropertyStructure
 from src.money import format_cents
 
 def get_timeline_events(filter_types=None):
@@ -20,21 +20,22 @@ def get_timeline_events(filter_types=None):
     events = []
     today = date.today()
     
-    # 1. MILESTONES
-    if not filter_types or 'milestone' in filter_types:
-        for m in Milestone.query.all():
-            if m.date_event:
-                d = m.date_event
-                events.append({
-                    'date': d,
-                    'title': m.title,
-                    'description': m.description,
-                    'type': 'milestone',
-                    'type_label': 'Milestone',
-                    'icon': '🚩',
-                    'link': '#', # No edit UI for milestones yet
-                    'is_past': d < today
-                })
+    # 1. EVENTS (what used to be milestones and tasks)
+    if not filter_types or 'milestone' in filter_types or 'task' in filter_types:
+        for e in Event.query.filter(Event.date != None).all():
+            etype = 'milestone' if e.kind == 'milestone' else 'task'
+            if filter_types and etype not in filter_types:
+                continue
+            events.append({
+                'date': e.date,
+                'title': e.title,
+                'description': e.description,
+                'type': etype,
+                'type_label': e.kind_label,
+                'icon': e.icon,
+                'link': url_for('main.holding_details', id=e.holding_id) if e.holding_id else '#',
+                'is_past': e.date < today
+            })
 
     # 2. RECURRING BILLS (Next Due Date)
     if not filter_types or 'financial' in filter_types:
@@ -48,21 +49,6 @@ def get_timeline_events(filter_types=None):
                 'icon': '💳',
                 'link': url_for('main.holding_details', id=b.holding_id) + '#tab-bills',
                 'is_past': b.next_due_date < today
-            })
-
-    # 3. TASKS
-    if not filter_types or 'task' in filter_types:
-        for t in Task.query.filter(Task.due_date != None).all():
-            d = t.due_date
-            events.append({
-                'date': d,
-                'title': t.title,
-                'description': f"Status: {t.status}",
-                'type': 'task',
-                'type_label': 'Task',
-                'icon': '✅',
-                'link': url_for('main.holding_details', id=t.holding_id) if t.holding_id else '#',
-                'is_past': d < today
             })
 
     # 4. ASSET HISTORY (Purchases & Appraisals)

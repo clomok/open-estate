@@ -14,15 +14,16 @@ from datetime import date
 from src.models import (
     BeneficiaryDesignation,
     Entity,
+    Event,
     Holding,
     HoldingVendor,
     LocationPoint,
-    Milestone,
     Person,
     PersonRole,
+    Playbook,
+    PlaybookStep,
     PropertyStructure,
     RecurringBill,
-    Task,
     Valuation,
 )
 from src.services.backup_schema import BACKUP_MODELS, BACKUP_TABLES, BACKUP_VERSION
@@ -45,9 +46,9 @@ def test_every_table_is_covered_by_the_backup(db):
     )
 
 
-def test_backup_is_version_3(db):
+def test_backup_is_version_4(db):
     _populate(db)
-    assert build_backup_dict()["version"] == BACKUP_VERSION == "3.0"
+    assert build_backup_dict()["version"] == BACKUP_VERSION == "4.0"
 
 
 def test_round_trip_preserves_every_table(db):
@@ -66,8 +67,9 @@ def test_round_trip_preserves_every_table(db):
     assert db.session.query(Holding).count() == 5
     assert db.session.query(Valuation).count() == 1
     assert db.session.query(BeneficiaryDesignation).count() == 2
-    assert db.session.query(Task).count() == 2
-    assert db.session.query(Milestone).count() == 1
+    assert db.session.query(Event).count() == 4
+    assert db.session.query(Playbook).count() == 1
+    assert db.session.query(PlaybookStep).count() == 2
     assert db.session.query(PropertyStructure).count() == 1
     assert db.session.query(LocationPoint).count() == 1
     assert db.session.query(RecurringBill).count() == 2
@@ -101,9 +103,13 @@ def test_round_trip_preserves_field_values(db):
     point = db.session.get(LocationPoint, 60)
     assert (point.latitude, point.longitude) == (33.5427, -117.6631)
 
-    task = db.session.get(Task, 30)
-    assert task.due_date == date(2026, 3, 15)
-    assert task.holding_id == 11
+    task = db.session.get(Event, 30)
+    assert (task.date, task.holding_id, task.assignee_id) == (date(2026, 3, 15), 11, 1)
+    review = db.session.get(Event, 31)
+    assert (review.done_at, review.repeat_every, review.repeat_unit) == (date(2026, 1, 6), 1, "year")
+    assert db.session.get(Event, 33).source == "bill:70@2025-11-01"
+    step = db.session.get(PlaybookStep, 1)
+    assert (step.who_role, step.document_type) == ("SuccessorTrustee", "POLST")
 
     root = db.session.get(Entity, 1)
     assert root.is_root and root.kind == "trust"
@@ -159,7 +165,7 @@ def test_round_trip_through_the_real_zip(db):
     _wipe(db)
     ok, msg = restore_from_json(payload)
     assert ok, msg
-    assert db.session.query(Task).count() == 2
+    assert db.session.query(Event).count() == 4
     assert db.session.get(Entity, 1).notes == "Reviewed by counsel"
 
 
@@ -200,8 +206,8 @@ def test_a_restore_without_a_root_trust_is_refused(db):
     _populate(db)
     data = build_backup_dict()
     data["entities"] = []
-    for h in data["holdings"]:
-        h["entity_id"] = None
+    for row in data["holdings"] + data["events"]:
+        row["entity_id"] = None
     ok, msg = restore_from_json(json.dumps(data))
     assert not ok and "root trust" in msg
     assert db.session.query(Entity).count() == 2
@@ -250,7 +256,8 @@ def test_a_v2_backup_restores_into_the_v3_ledger(db):
         (10, 2, 65.0, "trust_schedule")
     assert db.session.get(Person, 1).role_codes == ["Trustor"]
     assert db.session.get(RecurringBill, 70).amount_cents == 820000
-    assert db.session.get(Task, 30).due_date == date(2026, 3, 15)
+    task = db.session.get(Event, 30)
+    assert (task.kind, task.date, task.done_at) == ("task", date(2026, 3, 15), None)
 
 
 def test_older_backup_still_restores(db):
@@ -272,3 +279,46 @@ def test_every_converted_holding_passes_the_registry(db):
     assert restore_from_json(_v2_payload())[0]
     for h in db.session.query(Holding):
         assert validate_attributes(h.htype, h.attributes) == [], h.name
+
+
+# --- v3 files ----------------------------------------------------------------
+
+def _v3_payload():
+    from src.services import v2_upgrade
+    data = v2_upgrade.convert(json.loads(_v2_payload()))
+    data["version"] = "3.0"
+    return data
+
+
+def test_a_v3_backup_restores_with_tasks_and_milestones_as_events(db):
+    v3 = _v3_payload()
+    v3["tasks"][1]["updated_at"] = "2026-01-07T10:00:00"     # Done, recurring
+    ok, msg = restore_from_json(json.dumps(v3))
+    assert ok, msg
+    assert "upgraded from backup format 3.0" in msg
+
+    by_kind = {}
+    for e in db.session.query(Event).order_by(Event.id):
+        by_kind.setdefault(e.kind, []).append(e)
+    tasks, milestones = by_kind["task"], by_kind["milestone"]
+    assert [t.id for t in tasks] == [30, 31]
+    assert tasks[0].date == date(2026, 3, 15) and tasks[0].done_at is None
+    assert tasks[1].done_at == date(2026, 1, 7)
+    assert tasks[1].description == "(was marked recurring)" and not tasks[1].repeats
+    # Milestones are numbered after the last task, so nothing collides.
+    assert [m.id for m in milestones] == [32]
+    assert milestones[0].title == v3["milestones"][0]["title"]
+
+    # An old file carries no playbook; it comes back with the default one.
+    pb = db.session.query(Playbook).one()
+    assert pb.trigger == "death_of_trustor"
+    from src.services.default_playbook import STEPS
+    assert len(pb.steps) == len(STEPS)
+
+
+def test_a_v3_backup_with_no_version_is_still_recognised(db):
+    v3 = _v3_payload()
+    v3.pop("version", None)
+    ok, msg = restore_from_json(json.dumps(v3))
+    assert ok, msg
+    assert db.session.query(Event).filter_by(kind="task").count() == 2

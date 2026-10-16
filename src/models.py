@@ -328,21 +328,125 @@ class HoldingVendor(AuditMixin, db.Model):
     notes = db.Column(db.Text)
 
 
-# --- Left for Phase B, which replaces both with `event` ---------------------
+# --- The timeline: what has to happen, and when ----------------------------
 
-class Task(AuditMixin, db.Model):
+EVENT_KINDS = ("task", "deadline", "renewal", "review", "milestone", "memory")
+EVENT_KIND_LABELS = {
+    "task": "Task", "deadline": "Deadline", "renewal": "Renewal",
+    "review": "Review", "milestone": "Milestone", "memory": "Memory",
+}
+EVENT_KIND_ICONS = {
+    "task": "✅", "deadline": "⏰", "renewal": "🔁", "review": "🔍",
+    "milestone": "🚩", "memory": "📷",
+}
+# now = keeping the binder true while everyone is here; planning = estate
+# planning work; transition = the weeks after a death; administration = the
+# long tail of settling the trust.
+EVENT_PHASES = ("now", "planning", "transition", "administration")
+EVENT_PHASE_LABELS = {
+    "now": "Now", "planning": "Planning", "transition": "Transition",
+    "administration": "Administration",
+}
+REPEAT_UNITS = ("day", "week", "month", "year")
+
+
+class Event(AuditMixin, db.Model):
+    """One thing on the timeline. Replaces the v3 `task` and `milestone`.
+
+    `source` is set when the row stands for something the app derives (a
+    bill falling due, a holding nobody has verified): the derived feed skips
+    any source that already has a row, so touching a derived item - done,
+    snooze, a note - turns it into exactly one stored event. See
+    src/services/feeds.py."""
+    __table_args__ = (
+        CheckConstraint(_in("kind", EVENT_KINDS), name="ck_event_kind"),
+        CheckConstraint(_in("phase", EVENT_PHASES), name="ck_event_phase"),
+        CheckConstraint("repeat_unit IS NULL OR " + _in("repeat_unit", REPEAT_UNITS),
+                        name="ck_event_repeat_unit"),
+        CheckConstraint("repeat_every IS NULL OR repeat_every > 0",
+                        name="ck_event_repeat_every"),
+        Index("uq_event_source", "source", unique=True,
+              sqlite_where=text("source IS NOT NULL")),
+        Index("ix_event_open_date", "done_at", "date"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20), nullable=False, default="task", server_default="task")
     title = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(20), default="Pending")
-    due_date = db.Column(db.Date, nullable=True)
-    is_recurring = db.Column(db.Boolean, default=False)
+    date = db.Column(db.Date, nullable=True)          # undated = "whenever, but do it"
+    done_at = db.Column(db.Date, nullable=True)
+    assignee_id = db.Column(db.Integer, db.ForeignKey("person.id", ondelete="SET NULL"),
+                            nullable=True)
+    phase = db.Column(db.String(20), nullable=False, default="now", server_default="now")
+    description = db.Column(db.Text)
+    # What it is about (all optional). Deleting the record keeps the event.
     holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="SET NULL"),
                            nullable=True)
+    entity_id = db.Column(db.Integer, db.ForeignKey("entity.id", ondelete="SET NULL"),
+                          nullable=True)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id", ondelete="SET NULL"),
+                          nullable=True)
+    source = db.Column(db.String(120), nullable=True)
+    repeat_every = db.Column(db.Integer, nullable=True)
+    repeat_unit = db.Column(db.String(10), nullable=True)
+
+    assignee = db.relationship("Person", foreign_keys=[assignee_id],
+                               backref=db.backref("assigned_events", lazy=True))
+    person = db.relationship("Person", foreign_keys=[person_id],
+                             backref=db.backref("events", lazy=True))
+    holding = db.relationship("Holding", backref=db.backref(
+        "events", lazy=True, order_by="Event.date"))
+    entity = db.relationship("Entity", backref=db.backref("events", lazy=True))
+
+    @property
+    def is_done(self):
+        return self.done_at is not None
+
+    @property
+    def kind_label(self):
+        return EVENT_KIND_LABELS.get(self.kind, self.kind)
+
+    @property
+    def icon(self):
+        return EVENT_KIND_ICONS.get(self.kind, "•")
+
+    @property
+    def phase_label(self):
+        return EVENT_PHASE_LABELS.get(self.phase, self.phase)
+
+    @property
+    def repeats(self):
+        return bool(self.repeat_every and self.repeat_unit)
 
 
-class Milestone(AuditMixin, db.Model):
+class Playbook(AuditMixin, db.Model):
+    """A list of steps, each a number of days after a trigger date. Running
+    it on a date makes one event per step. The death-of-trustor playbook is
+    shipped as an editable default (src/services/default_playbook.py)."""
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    date_event = db.Column(db.Date, nullable=True)
+    name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    is_completed = db.Column(db.Boolean, default=False)
+    # What sets it off. "death_of_trustor" is offered when the trust's
+    # date_death_actual is filled in; NULL = run by hand only.
+    trigger = db.Column(db.String(50), nullable=True)
+
+    steps = db.relationship("PlaybookStep", backref="playbook", lazy=True,
+                            cascade="all, delete-orphan",
+                            order_by="(PlaybookStep.offset_days, PlaybookStep.position)")
+
+
+class PlaybookStep(AuditMixin, db.Model):
+    __tablename__ = "playbook_step"
+
+    id = db.Column(db.Integer, primary_key=True)
+    playbook_id = db.Column(db.Integer, db.ForeignKey("playbook.id", ondelete="CASCADE"),
+                            nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    offset_days = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    title = db.Column(db.String(200), nullable=False)
+    # A role code from PERSON_ROLES; the run assigns the first person holding it.
+    who_role = db.Column(db.String(50), nullable=True)
+    instructions = db.Column(db.Text)
+    # Free text until Phase C adds documents: what to find before doing this.
+    document_type = db.Column(db.String(100), nullable=True)
+    kind = db.Column(db.String(20), nullable=False, default="task", server_default="task")

@@ -10,19 +10,20 @@ the build if any mapped table is ever missing from BACKUP_MODELS.
 from src.models import (
     BeneficiaryDesignation,
     Entity,
+    Event,
     Holding,
     HoldingVendor,
     LocationPoint,
-    Milestone,
     Person,
     PersonRole,
+    Playbook,
+    PlaybookStep,
     PropertyStructure,
     RecurringBill,
-    Task,
     Valuation,
 )
 
-BACKUP_VERSION = "3.0"
+BACKUP_VERSION = "4.0"
 
 # (key in the JSON file, model class)
 # Parents first: restore inserts in this order and wipes in reverse, so a
@@ -35,15 +36,18 @@ BACKUP_MODELS = [
     ("valuations", Valuation),
     # Who inherits what share - the most load-bearing fact in the binder.
     ("beneficiary_designations", BeneficiaryDesignation),
-    ("tasks", Task),
-    ("milestones", Milestone),
     ("structures", PropertyStructure),
     ("location_points", LocationPoint),
     ("bills", RecurringBill),
     ("vendors", HoldingVendor),
+    # The timeline: events point at people, entities and holdings, so they
+    # come after all three.
+    ("events", Event),
+    ("playbooks", Playbook),
+    ("playbook_steps", PlaybookStep),
 ]
 
-# Association tables with no model class of their own. v3 has none: every
+# Association tables with no model class of their own. v4 has none: every
 # link carries data of its own and is a model above.
 BACKUP_TABLES = []
 
