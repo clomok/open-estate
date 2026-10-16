@@ -559,6 +559,8 @@ code { font-size: 0.9em; background: var(--parchment-deep); padding: 0.05rem 0.3
     overflow: hidden;
 }
 .asset-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+/* overflow: hidden crops the glyph; while the ⋮ menu is open it would crop Delete too. */
+.asset-card:has(.menu-dropdown.show) { overflow: visible; z-index: 5; }
 .asset-card.side-liability { border-top-color: var(--oxblood); }
 .asset-card.side-equity { border-top-color: var(--bronze); }
 .asset-card .asset-type { display: block; margin-bottom: 0.3rem; padding-right: 2rem; }
