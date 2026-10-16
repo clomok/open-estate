@@ -2,147 +2,219 @@
 
 {% from '_rows.html' import row_card, filter_bar %}
 {% block title %}Timeline · Open Estate{% endblock %}
+
+{# One row on the rail: the date in the gutter (only on a day's first row),
+   a dot on the rail, the shared row card beside it. #}
+{% macro tl_item(r, d, prev_d, here, actions=True) %}
+<div class="tl-item">
+    <div class="tl-date">
+        {% if d and d != prev_d %}
+            <span class="tl-day">{{ d.day }}</span><span class="tl-dow">{{ d.strftime('%a') }}</span>
+        {% elif not d %}
+            <span class="tl-dow">—</span>
+        {% endif %}
+    </div>
+    <div class="tl-dot ev-kind-{{ r.kind }}" aria-hidden="true"></div>
+    <div class="tl-card">{{ row_card(r, today, here, actions=actions) }}</div>
+</div>
+{% endmacro %}
+
+{# A month of rows. History is dated by when it was done. #}
+{% macro tl_month(month, rows, here, past=False) %}
+<section class="tl-month">
+    <h3 class="tl-month-head">
+        <span>{{ month.strftime('%B') }}{% if month.year != today.year %} <span class="tl-year">{{ month.year }}</span>{% endif %}</span>
+        <span class="tl-month-count">{{ rows|length }}</span>
+    </h3>
+    <div class="tl-rail">
+        {% for r in rows %}
+            {% set prev = loop.previtem if not loop.first else None %}
+            {% if past %}
+                {{ tl_item(r, r.done_at or r.date, (prev.done_at or prev.date) if prev else None, here,
+                           actions=r.kind not in ('valuation', 'acquisition', 'maintenance')) }}
+            {% else %}
+                {{ tl_item(r, r.date, prev.date if prev else None, here) }}
+            {% endif %}
+        {% endfor %}
+    </div>
+</section>
+{% endmacro %}
+
 {% block content %}
 {% set here = request.full_path.rstrip('?') %}
-<div class="timeline-wrapper">
+{% set now_count = overdue|length + due_today|length + undated|length %}
+{% set filtered = filters.assignee or filters.phases or filters.entity or filters.kinds %}
+<div class="tl-page" id="tlPage">
 
-    <div class="timeline-top">
-        <div class="page-head">
-            <div>
-                <span class="eyebrow">Every event, past and ahead</span>
-                <h1>Timeline</h1>
-            </div>
-            <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Every event, past and ahead</span>
+            <h1>Timeline</h1>
         </div>
-
-        <div class="saved-views">
-            <span class="saved-views-label">Saved views</span>
-            <div id="savedViewsList" class="saved-views-list"></div>
-            <button onclick="saveCurrentView()" class="saved-views-save">+ Save current</button>
-        </div>
-
-        {{ filter_bar(url_for('main.timeline_view'), filters, options, options.kinds, history_kinds) }}
+        <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
     </div>
 
-    <div class="timeline-split-view">
-
-        <div id="section-upcoming" class="timeline-column expanded reverse-layout">
-            <div class="timeline-header header-royal" onclick="toggleSection('upcoming')">
-                <h2>
-                    Upcoming &amp; Active
-                    <span class="toggle-icon" id="icon-upcoming">▲</span>
-                </h2>
-                <span class="tl-count">{{ upcoming|length + undated|length }} open</span>
-            </div>
-            <div class="timeline-scroll-area">
-                {% for r in upcoming %}{{ row_card(r, today, here) }}{% endfor %}
-                {# This list is column-reverse (soonest sits by the header), so the
-                   subhead comes after its rows in the markup to show above them. #}
-                {% if undated %}
-                    {% for r in undated|reverse %}{{ row_card(r, today, here) }}{% endfor %}
-                    <div class="tl-subhead">No date · needs attention</div>
-                {% endif %}
-                {% if not upcoming and not undated %}
-                    <p class="empty" style="padding: 1rem; text-align: center;">Nothing open matches these filters.</p>
-                {% endif %}
-            </div>
+    {# The jump bar stays at the top of the screen while the page scrolls. #}
+    <div class="tl-bar" id="tlBar">
+        <div class="tl-bar-row">
+            <button type="button" class="tl-jump" data-jump="tl-ahead" {% if not ahead_count %}disabled{% endif %}>
+                ↑<span class="tl-word"> Ahead</span> <span class="tl-n">{{ ahead_count }}</span>
+            </button>
+            <button type="button" class="tl-jump tl-jump-today" data-jump="tl-today" id="tlTodayBtn">
+                Today{% if now_count %} <span class="tl-n">{{ now_count }}</span>{% endif %}
+            </button>
+            <button type="button" class="tl-jump" data-jump="tl-past" {% if not past_count %}disabled{% endif %}>
+                ↓<span class="tl-word"> Past</span> <span class="tl-n">{{ past_count }}</span>
+            </button>
+            <button type="button" class="tl-filter-toggle{% if filtered %} active{% endif %}" id="tlFilterBtn"
+                    aria-expanded="false" aria-controls="tlTools">
+                Filters{% if filtered %} · on{% endif %}
+            </button>
         </div>
-
-        <div id="section-history" class="timeline-column expanded">
-            <div class="timeline-header header-stone" onclick="toggleSection('history')">
-                <h2>
-                    History &amp; Logs
-                    <span class="toggle-icon" id="icon-history">▼</span>
-                </h2>
-                <span class="tl-count">{{ history|length }} entries</span>
+        <div class="tl-tools" id="tlTools" hidden>
+            <div class="saved-views">
+                <span class="saved-views-label">Saved views</span>
+                <div id="savedViewsList" class="saved-views-list"></div>
+                <button type="button" onclick="saveCurrentView()" class="saved-views-save">+ Save current</button>
             </div>
-            <div class="timeline-scroll-area">
-                {% for r in history %}{{ row_card(r, today, here, actions=r.kind not in ('valuation', 'acquisition', 'maintenance')) }}{% else %}
-                    <p class="empty" style="padding: 1rem; text-align: center;">No history found.</p>
-                {% endfor %}
-            </div>
+            {{ filter_bar(url_for('main.timeline_view'), filters, options, options.kinds, history_kinds) }}
         </div>
     </div>
 
+    {% if ahead_months %}
+    <div class="tl-zone tl-ahead" id="tl-ahead">
+        <div class="tl-zone-label">Ahead · the farthest out first</div>
+        {% for month, rows in ahead_months %}
+            {{ tl_month(month, rows, here) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="tl-zone tl-now" id="tl-today">
+        <div class="tl-horizon">
+            <span class="tl-horizon-pill">Today · {{ today.strftime('%a, %b') }} {{ today.day }}</span>
+        </div>
+        {% if overdue %}
+            <div class="tl-now-head tl-now-overdue">Overdue <span class="now-count">{{ overdue|length }}</span></div>
+            <div class="tl-rail">
+            {% for r in overdue %}{{ tl_item(r, r.date, overdue[loop.index0 - 1].date if not loop.first else None, here) }}{% endfor %}
+            </div>
+        {% endif %}
+        {% if due_today %}
+            <div class="tl-now-head">Due today <span class="now-count">{{ due_today|length }}</span></div>
+            <div class="tl-rail">
+            {% for r in due_today %}{{ tl_item(r, r.date, today if not loop.first else None, here) }}{% endfor %}
+            </div>
+        {% endif %}
+        {% if undated %}
+            <div class="tl-now-head">No date · needs attention <span class="now-count">{{ undated|length }}</span></div>
+            <div class="tl-rail">
+            {% for r in undated %}{{ tl_item(r, None, None, here) }}{% endfor %}
+            </div>
+        {% endif %}
+        {% if not now_count %}
+            <p class="tl-calm">Nothing overdue or due today{% if filtered %} for these filters{% endif %}.</p>
+        {% endif %}
+    </div>
+
+    <div class="tl-zone tl-past" id="tl-past">
+        {% for month, rows in past_months %}
+            {{ tl_month(month, rows, here, past=True) }}
+        {% else %}
+            <p class="tl-calm">No history{% if filtered %} for these filters{% endif %}.</p>
+        {% endfor %}
+        {% if past_months %}<div class="tl-end">The beginning of the record</div>{% endif %}
+    </div>
+
+    {% if not ahead_months and not now_count and not past_months %}
+        <p class="empty">Nothing matches these filters.</p>
+    {% endif %}
 </div>
 
 <script>
-    function updateLayoutState() {
-        const upcoming = document.getElementById('section-upcoming');
-        const history = document.getElementById('section-history');
-        const wrapper = document.querySelector('.timeline-split-view');
-        const isUpcomingOpen = upcoming.classList.contains('expanded');
-        const isHistoryOpen = history.classList.contains('expanded');
-        if (isUpcomingOpen && isHistoryOpen) {
-            wrapper.classList.add('dual-view');
-        } else {
-            wrapper.classList.remove('dual-view');
+(function () {
+    const page = document.getElementById('tlPage');
+    const bar = document.getElementById('tlBar');
+    const tools = document.getElementById('tlTools');
+    const filterBtn = document.getElementById('tlFilterBtn');
+    const todayEl = document.getElementById('tl-today');
+    const todayBtn = document.getElementById('tlTodayBtn');
+    const KEY = 'estate_timeline_scroll';
+
+    // Month headers stick just under the jump bar, whatever its height.
+    const setStick = () => page.style.setProperty('--tl-stick', bar.offsetHeight + 'px');
+    new ResizeObserver(setStick).observe(bar);
+    setStick();
+
+    filterBtn.addEventListener('click', () => {
+        const open = tools.hidden;
+        tools.hidden = !open;
+        filterBtn.setAttribute('aria-expanded', open);
+    });
+
+    document.querySelectorAll('.tl-jump').forEach(btn => btn.addEventListener('click', () => {
+        document.getElementById(btn.dataset.jump).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+
+    // Open on today. After a ✓ / snooze the page comes back to the same
+    // URL; put the reader back where they were instead.
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    const here = location.pathname + location.search;
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
+    sessionStorage.removeItem(KEY);
+    if (saved && saved.url === here && Date.now() - saved.at < 60000) {
+        window.scrollTo(0, saved.y);
+    } else {
+        todayEl.scrollIntoView({ block: 'start' });
+    }
+    page.addEventListener('submit', e => {
+        if (e.target.closest('.ev-actions')) {
+            sessionStorage.setItem(KEY, JSON.stringify({ url: here, y: window.scrollY, at: Date.now() }));
         }
-    }
+    });
 
-    function toggleSection(targetName) {
-        const upcomingSec = document.getElementById('section-upcoming');
-        const historySec = document.getElementById('section-history');
-        const iconUpcoming = document.getElementById('icon-upcoming');
-        const iconHistory = document.getElementById('icon-history');
-
-        const target = targetName === 'upcoming' ? upcomingSec : historySec;
-        const targetIcon = targetName === 'upcoming' ? iconUpcoming : iconHistory;
-        const expandedIcon = targetName === 'upcoming' ? '▲' : '▼';
-        const collapsedIcon = '◀';
-
-        const setState = (el, icon, isCollapsed) => {
-            if (isCollapsed) {
-                el.classList.remove('expanded');
-                el.classList.add('collapsed');
-                icon.innerHTML = collapsedIcon;
-                if (el.id === 'section-upcoming') el.classList.remove('reverse-layout');
-            } else {
-                el.classList.remove('collapsed');
-                el.classList.add('expanded');
-                icon.innerHTML = expandedIcon;
-                if (el.id === 'section-upcoming') el.classList.add('reverse-layout');
-            }
-        };
-
-        setState(target, targetIcon, !target.classList.contains('collapsed'));
-        updateLayoutState();
-    }
-
-    document.addEventListener('DOMContentLoaded', updateLayoutState);
-
-    // --- Saved views (localStorage) ---
-    function saveCurrentView() {
-        const name = prompt("Name this view:");
-        if (!name) return;
-        const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
-        views[name] = window.location.search;
-        localStorage.setItem('estate_timeline_views', JSON.stringify(views));
-        renderSavedViews();
-    }
-
-    function deleteView(name) {
-        if (!confirm('Delete "' + name + '"?')) return;
-        const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
-        delete views[name];
-        localStorage.setItem('estate_timeline_views', JSON.stringify(views));
-        renderSavedViews();
-    }
-
-    function renderSavedViews() {
-        const container = document.getElementById('savedViewsList');
-        const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
-        let html = `<a href="{{ url_for('main.timeline_view') }}" class="saved-view-tag">View all</a>`;
-        for (const [name, search] of Object.entries(views)) {
-            html += `
-                <span class="saved-view-group">
-                    <a href="{{ url_for('main.timeline_view') }}${search}" class="saved-view-tag custom">${name}</a>
-                    <button onclick="deleteView('${name}')" class="saved-view-del">&times;</button>
-                </span>
-            `;
+    // When today is off screen the Today button points back to it.
+    new IntersectionObserver(([entry]) => {
+        todayBtn.classList.remove('away-up', 'away-down');
+        if (!entry.isIntersecting) {
+            todayBtn.classList.add(entry.boundingClientRect.top < 0 ? 'away-up' : 'away-down');
         }
-        container.innerHTML = html;
+    }).observe(todayEl);
+})();
+
+// --- Saved views (localStorage) ---
+function saveCurrentView() {
+    const name = prompt("Name this view:");
+    if (!name) return;
+    const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
+    views[name] = window.location.search;
+    localStorage.setItem('estate_timeline_views', JSON.stringify(views));
+    renderSavedViews();
+}
+
+function deleteView(name) {
+    if (!confirm('Delete "' + name + '"?')) return;
+    const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
+    delete views[name];
+    localStorage.setItem('estate_timeline_views', JSON.stringify(views));
+    renderSavedViews();
+}
+
+function renderSavedViews() {
+    const container = document.getElementById('savedViewsList');
+    const views = JSON.parse(localStorage.getItem('estate_timeline_views') || '{}');
+    let html = `<a href="{{ url_for('main.timeline_view') }}" class="saved-view-tag">View all</a>`;
+    for (const [name, search] of Object.entries(views)) {
+        html += `
+            <span class="saved-view-group">
+                <a href="{{ url_for('main.timeline_view') }}${search}" class="saved-view-tag custom">${name}</a>
+                <button onclick="deleteView('${name}')" class="saved-view-del">&times;</button>
+            </span>
+        `;
     }
-    document.addEventListener('DOMContentLoaded', renderSavedViews);
+    container.innerHTML = html;
+}
+document.addEventListener('DOMContentLoaded', renderSavedViews);
 </script>
 {% endblock %}

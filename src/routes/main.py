@@ -41,6 +41,17 @@ def _filter_options():
     }
 
 
+def _by_month(rows, when):
+    """Already-sorted rows -> [(first-of-month date, rows)], order kept."""
+    groups = []
+    for r in rows:
+        month = when(r).replace(day=1)
+        if not groups or groups[-1][0] != month:
+            groups.append((month, []))
+        groups[-1][1].append(r)
+    return groups
+
+
 @bp.route('/')
 @login_required
 def now():
@@ -174,8 +185,9 @@ def holding_details(id):
 @bp.route('/timeline')
 @login_required
 def timeline_view():
-    """Upcoming (every open event and derived item, overdue first) beside
-    history (done events, valuations, acquisitions, maintenance)."""
+    """Every event on one scroll: what is ahead, what is due now (overdue,
+    today, undated), then history (done events, valuations, acquisitions,
+    maintenance)."""
     today = date.today()
     f = _filters()
     event_kinds = [k for k in f["kinds"] if k in EVENT_KINDS]
@@ -199,10 +211,21 @@ def timeline_view():
     upcoming.sort(key=lambda r: (r.date, r.title.lower()))
     history.sort(key=lambda r: (r.done_at or r.date), reverse=True)
 
+    # One page, one direction: the farthest future at the top, down through
+    # today (overdue, due today, undated) into the past.
+    ahead = [r for r in upcoming if r.date > today]
+    ahead.reverse()
+    overdue = [r for r in upcoming if r.date < today]
+    due_today = [r for r in upcoming if r.date == today]
+
     return render_template('timeline.html',
-                           history=history,
-                           upcoming=upcoming,
+                           ahead_months=_by_month(ahead, lambda r: r.date),
+                           ahead_count=len(ahead),
+                           overdue=overdue,
+                           due_today=due_today,
                            undated=undated,
+                           past_months=_by_month(history, lambda r: r.done_at or r.date),
+                           past_count=len(history),
                            today=today,
                            filters=f,
                            options=_filter_options(),
