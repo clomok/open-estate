@@ -186,3 +186,21 @@ def test_a_post_without_a_token_is_refused(tmp_path):
         _db.session.remove()
         _db.drop_all()
         _db.engine.dispose()
+
+
+# --- contacts -----------------------------------------------------------------------
+
+def test_role_checkboxes_are_not_each_required(client, estate):
+    # A `required` on every box makes the browser demand all of them ticked.
+    html = client.get("/e/test/manage/contact/new").data.decode()
+    assert 'type="checkbox"' in html
+    assert not any("required" in tag for tag in html.split("<input") if 'name="roles"' in tag)
+
+
+def test_a_contact_with_one_role_saves_and_with_none_does_not(client, estate):
+    client.post("/e/test/manage/contact/new",
+                data={"name": "Una Role", "kind": "individual", "roles": ["Attorney"]})
+    assert Person.query.filter_by(name="Una Role").one().role_codes == ["Attorney"]
+    r = client.post("/e/test/manage/contact/new", data={"name": "No Role", "kind": "individual"})
+    assert b"Pick at least one role." in r.data
+    assert Person.query.filter_by(name="No Role").count() == 0

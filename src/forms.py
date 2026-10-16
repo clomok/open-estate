@@ -123,12 +123,18 @@ class MultiCheckboxField(SelectMultipleField):
     option_widget = CheckboxInput()
 
 
+def _at_least_one(form, field):
+    # Not DataRequired: its `required` flag is rendered onto EVERY checkbox,
+    # and the browser then refuses the form until all of them are ticked.
+    if not field.data:
+        raise ValidationError("Pick at least one role.")
+
+
 class PersonForm(FlaskForm):
     name = StringField('Name / organisation', validators=[DataRequired(), Length(max=100)])
     kind = SelectField('This is', choices=[("individual", "A person"),
                                           ("organisation", "An organisation / firm")])
-    roles = MultiCheckboxField('Roles', choices=PERSON_ROLES,
-                               validators=[DataRequired(message="Pick at least one role.")])
+    roles = MultiCheckboxField('Roles', choices=PERSON_ROLES, validators=[_at_least_one])
     email = StringField('Email', validators=[Optional(), Length(max=120)])
     phone = StringField('Phone', validators=[Optional(), Length(max=20)])
     address = TextAreaField('Physical address', validators=[Optional()])
