@@ -85,8 +85,10 @@ make test
 ## 🗺️ Roadmap
 
 - [x] **Secure Infrastructure:** Non-root Docker container with Authentication.
-- [x] **Asset Management:** Add/Edit Assets, Liabilities, and Vehicles.
-- [x] **Dynamic Details:** Flexible "Attribute" system for custom data (VIN, Safe Combos, etc).
+- [x] **Ledger:** Any asset, liability or equity stake - built-in types per side plus a Custom type whose fields you name. Money in exact cents; net worth = assets − liabilities.
+- [x] **The trust at the root:** One trust per dataset holds everything; LLCs, corporations, retirement accounts and personal holdings attach to it as add-ons.
+- [x] **Beneficiary shares:** Who inherits what percentage of each holding, by trust schedule, account TOD or will, with totals that flag anything short of 100%.
+- [x] **Migrations, not wipes:** The container migrates its database on start and keeps a copy of the file first.
 - [x] **Durability Layer:** JSON/HTML Backup & Restore system, covering every table.
 - [x] **Multiple Estates:** One container per dataset — separate database, port, password and badge.
 - [ ] **Logic Engine:** Automated health checks (e.g., "Warn if Asset has no Beneficiary").

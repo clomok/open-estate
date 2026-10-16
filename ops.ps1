@@ -86,7 +86,7 @@ if (-not $Run) {
     Write-Host " (Shut down this dataset's container)"
 
     Write-Host "  5. Wipe DB " -NoNewline -ForegroundColor Red
-    Write-Host " (RESET DB -> RESTART SERVER)"
+    Write-Host " (EMPTY a demo DB - not needed for schema changes)"
 
     Write-Host "  6. Seed    " -NoNewline -ForegroundColor Green
     Write-Host " (Load data from scripts/ folder)"
@@ -150,6 +150,8 @@ switch ($Run) {
             docker @Compose restart web
 
             Write-Host "--- DONE. Dataset '$Dataset' is clean and empty. ---" -ForegroundColor Green
+            Write-Host "    (A schema change never needs a wipe: restarting the container" -ForegroundColor DarkGray
+            Write-Host "     runs scripts/upgrade_db.py, which migrates in place.)" -ForegroundColor DarkGray
         }
         else {
             Write-Host "Cancelled." -ForegroundColor Yellow

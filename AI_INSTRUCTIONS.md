@@ -136,34 +136,76 @@ Consequences to respect:
 
 ## 4.5 Non-Negotiables When Changing the Schema
 
-**Adding a model or an association table means adding it to
-`src/services/backup_schema.py` in the same commit.** Export and restore both
-read that one list; a table missing from it is data the UI collects and the
-backup silently drops. That is not hypothetical - Task, PropertyStructure,
-LocationPoint, RecurringBill, AssetVendor, TrustProfile and every beneficiary
-share were all lost on a round trip while the app flashed "restored
-successfully". `tests/test_backup.py` now fails the build if it happens again,
-so run the tests before calling a schema change done:
+**1. Every schema change is an Alembic migration. Never wipe and recreate.**
+A dataset marked `DATASET_PROTECTED=1` holds a family's real estate; it can
+only ever move forward by migration. The container runs
+`scripts/upgrade_db.py` before gunicorn on every start: it copies the database
+to `instance/backups/` and then runs `flask db upgrade`, so deploying a change
+*is* applying its migration.
+
+```bash
+# after editing src/models.py, inside the container or a dev venv:
+flask db migrate -m "what changed"     # autogenerate a draft
+# READ the draft. Autogenerate cannot see renames or data moves - write those
+# by hand (see migrations/versions/b7e2c41f9a03_ledger_v3.py for a data move).
+flask db upgrade
+make test                              # test_migrations proves models == migrations
+```
+
+`tests/test_migrations.py::test_migrations_build_exactly_the_model_schema`
+fails the build when `src/models.py` and the migrations disagree, so a model
+change without its migration cannot pass.
+
+**2. Adding a model means adding it to `src/services/backup_schema.py` in the
+same commit.** Export and restore both read that one list; a table missing
+from it is data the UI collects and the backup silently drops. That is not
+hypothetical - Task, PropertyStructure, LocationPoint, RecurringBill,
+AssetVendor, TrustProfile and every beneficiary share were all lost on a round
+trip while the app flashed "restored successfully". `tests/test_backup.py`
+fails the build if it happens again. Serialization is driven off the column
+types, so a new **column** on an existing model is covered automatically.
+
+**3. Changing the backup layout bumps `BACKUP_VERSION` and keeps old files
+restorable.** v1/v2 files go through `src/services/v2_upgrade.py`, the same
+converter the v3 migration uses on an old database. That file is frozen; a v4
+gets its own step.
 
 ```bash
 pip install -r requirements-dev.txt
 make test
 ```
 
-Serialization is driven off the SQLAlchemy column types, so a new **column** on
-an existing model is covered automatically. Only new **tables** need the edit.
+## 5. Database Schema Key Points (v3)
 
-## 5. Database Schema Key Points
-
-- **Asset:**
-- `asset_type`, `value_estimated`, `attributes` (JSON).
-- **Relationships:** `appraisals`, `structures`, `location_points`, `bills`, `vendors`.
-- **TrustProfile (Singleton):**
-- `name`, `date_established`, `date_death_estimated`, `date_death_actual`, `review_frequency`, `next_review_date`.
-- **Person:**
-- `role` (Trustor, Beneficiary, Vendor, etc).
-- **Sub-Items:**
-- `PropertyStructure`, `LocationPoint`, `RecurringBill`.
+- **Entity:** exactly one root per dataset, `kind = trust`, `is_root = 1`
+  (enforced in the database). It carries the trust's name, dates, review
+  schedule and transition dates; the Trust page edits it. Other kinds
+  (`corporation`, `llc`, `retirement_account`, `individual`) are optional
+  add-ons with `parent_id` = the root.
+- **Holding:** the ledger. `side` ∈ `asset` · `liability` · `equity`,
+  `type_code`, `value_cents` (always positive - the side gives the sign),
+  `attributes` (JSON, validated against the registry), `entity_id` (NULL = in
+  the trust), `owner_id`, `ownership_pct` (equity), `secured_by_id`
+  (liability -> an asset). Net worth = Σ assets − Σ liabilities; equity is
+  reported beside it, not inside it.
+- **`src/holding_types.py`:** the one list of types, per side, with each
+  field's `type` and `sensitivity`. Every side has `custom`, whose fields the
+  user names. Add a type there and nowhere else.
+- **Person:** `kind` (individual / organisation) and any number of
+  **PersonRole** rows.
+- **BeneficiaryDesignation:** holding, person, `percentage`, `kind`
+  (`trust_schedule` · `account_tod` · `will`). Deleting a person with shares
+  is refused.
+- **Valuation:** dated history per holding (`value_cents`); the newest sets the
+  holding's value.
+- **Sub-items on every holding:** `PropertyStructure`, `LocationPoint`,
+  `RecurringBill` (`amount_cents`), `HoldingVendor`.
+- **Task / Milestone:** kept as-is until Phase B replaces them with `event`.
+- **Every table:** `created_at`, `updated_at`, `last_verified` (set only by
+  "mark verified").
+- **Money is Integer cents; dates are `Date`.** `src/money.py` and the
+  `currency` filter are the only places cents become dollars.
+- **Foreign keys are enforced** (`PRAGMA foreign_keys=ON`, `src/extensions.py`).
 
 ## 6. Operational Commands (Cheatsheet)
 
@@ -175,7 +217,8 @@ Every command names its dataset. There is no default.
 .\ops.ps1 -Dataset demo
 # Menu Options:
 # 1. Update (Rebuild container)
-# 5. Wipe DB (Resets DB & Restarts Server - REQUIRED if schema changes)
+# 5. Wipe DB (empties a DEMO dataset - never needed for a schema change;
+#    restarting the container applies new migrations)
 # 6. Seed (Loads data from scripts/)
 #
 # 5 and 6 refuse outright on a dataset with DATASET_PROTECTED=1.
@@ -214,4 +257,4 @@ flask db upgrade
 
 ---
 
-_Last Updated: multi-dataset packaging + full-coverage backup/restore._
+_Last Updated: ledger v3 (holding / entity / shares), migrations on start._
