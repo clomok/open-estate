@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for
 from src.services.auth_service import login_required
 from src.services.timeline_service import history_rows, HISTORY_KINDS
-from src.services import events as event_service, playbooks as playbook_service
+from src.services import events as event_service, feeds, playbooks as playbook_service
 from src.services.default_playbook import DISCLAIMER
 from src.services.estate import get_root_entity, addon_entities
 from src.models import (Person, Holding, Playbook, FAMILY_ROLES, DESIGNATION_KIND_LABELS,
@@ -169,9 +169,47 @@ def holding_details(id):
     people = Person.query.order_by(Person.name).all()
     designation_form.person_id.choices = [(p.id, p.name) for p in people]
 
+    # The attention strip: this holding's derived flags in the Now page's
+    # window (overdue, due within 30 days, or undated "needs attention").
+    today = date.today()
+    horizon = today + timedelta(days=30)
+    here = url_for('main.holding_details', id=holding.id)
+    root_id = get_root_entity().id
+    attention = []
+    for item in feeds.derived_items(today):
+        if item.holding_id != holding.id or (item.date and item.date > horizon):
+            continue
+        row = event_service.row_for_item(item, root_id)
+        if row.link == here:            # Open would only reload this page
+            row.link = '#'
+        attention.append(row)
+    attention.sort(key=lambda r: (r.date or date.max, r.title.lower()))
+    stale = any(r.feed == 'verify' for r in attention)
+
+    newest_first = history[::-1]
+    prev_valuation = newest_first[1] if len(newest_first) > 1 else None
+    latest_valuation = newest_first[0] if newest_first else None
+    due = [b for b in holding.bills if b.next_due_date]
+    next_bill = min(due, key=lambda b: b.next_due_date) if due else None
+    htype = holding.htype
+    show_place = bool((htype and htype.has_place)
+                      or holding.location_points or holding.structures)
+    events = sorted(holding.events, key=lambda e: (e.date or date.min), reverse=True)
+
     return render_template('holding_details.html',
+                           attention=attention[:5],
+                           attention_more=max(0, len(attention) - 5),
+                           stale=stale,
+                           latest_valuation=latest_valuation,
+                           prev_valuation=prev_valuation,
+                           next_bill=next_bill,
+                           share_summary=holding.share_totals(),
+                           show_place=show_place,
+                           events=events[:10],
+                           events_more=max(0, len(events) - 10),
+                           today=today,
                            holding=holding,
-                           htype=holding.htype,
+                           htype=htype,
                            root=get_root_entity(),
                            form=form,
                            designation_form=designation_form,

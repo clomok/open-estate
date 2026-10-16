@@ -73,6 +73,9 @@ class HoldingType:
     # this many days, and when its newest valuation is this old.
     verify_days: int = 365
     revalue_days: int = 365
+    # Something you could stand next to: the detail page shows its Place
+    # section (pins, structures) even before any are recorded.
+    has_place: bool = False
 
     def field(self, name):
         for f in self.fields:
@@ -102,13 +105,13 @@ _TYPES = [
     HoldingType("asset", "real_estate", "Real estate", "🏠", (
         _f("address", "Property address", "textarea"),
         _f("apn_number", "APN / parcel number"),
-        *_PURCHASE)),
+        *_PURCHASE), has_place=True),
     HoldingType("asset", "vehicle", "Vehicle", "🚗", (
         _f("year", "Year"), _f("make", "Make"), _f("model", "Model"),
         _f("vin", "VIN", sensitivity="sensitive"),
         _f("license_plate", "License plate"),
         _f("location_keys", "Where the spare keys are", sensitivity="sensitive"),
-        *_PURCHASE)),
+        *_PURCHASE), has_place=True),
     HoldingType("asset", "bank", "Bank account", "🏦", (
         _f("institution", "Bank / institution"),
         _f("account_type", "Account type", "select", choices=(
@@ -126,9 +129,9 @@ _TYPES = [
             ("IRA", "Traditional IRA"), ("Roth", "Roth IRA"), ("401k", "401(k)"),
             ("403b", "403(b)"), ("Pension", "Pension"), ("Other", "Other"))),
         _ACCOUNT, _f("advisor_name", "Advisor"))),
-    HoldingType("asset", "jewelry", "Jewelry / watch", "💎", _PERSONAL_ITEM),
+    HoldingType("asset", "jewelry", "Jewelry / watch", "💎", _PERSONAL_ITEM, has_place=True),
     HoldingType("asset", "art", "Art / collectible", "🎨",
-                (_f("artist", "Artist / maker"),) + _PERSONAL_ITEM),
+                (_f("artist", "Artist / maker"),) + _PERSONAL_ITEM, has_place=True),
     HoldingType("asset", "income_stream", "Income stream", "💵", (
         _f("payer", "Paid by"),
         _f("stream_type", "Kind", "select", choices=(
@@ -180,7 +183,7 @@ _TYPES = [
         _f("co_owners", "Other owners"),
         _f("title_form", "How title is held", "select", choices=(
             ("TIC", "Tenants in common"), ("JTWROS", "Joint tenancy"),
-            ("Community", "Community property"), ("Other", "Other"))))),
+            ("Community", "Community property"), ("Other", "Other")))), has_place=True),
     HoldingType("equity", "other", "Other equity", "📊", (
         _f("stake_in", "Stake in"),
         _f("description", "Description", "textarea"))),
