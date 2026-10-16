@@ -49,10 +49,15 @@ open-estate-dashboard/
     │   ├── backup_schema.py # THE list of what a backup covers (export + import read it)
     │   ├── export_service.py
     │   ├── import_service.py
-    │   └── timeline_service.py
+    │   ├── feeds.py         # THE registry of derived timeline items
+    │   ├── events.py        # done / snooze / repeat, and the Row the pages show
+    │   ├── playbooks.py     # running a playbook on a date
+    │   ├── default_playbook.py  # the shipped death-of-trustor steps (data)
+    │   └── timeline_service.py  # history rows: valuations, purchases, maintenance
     ├── routes/             # Web Handlers (Main, Manage, Settings)
     └── templates/          # HTML Templates
-        ├── dashboard.html
+        ├── now.html        # Home page: what needs doing now
+        ├── dashboard.html  # /overview: net worth
         ├── timeline.html   # Unified Timeline View
         ├── assets.html
         ├── asset_details.html
@@ -105,6 +110,13 @@ Consequences to respect:
 - **Visual Consistency:** Asset-specific icons (e.g., 🏠 for House History) used in timeline events.
 - **Horizontal Cards:** High-density layout minimizing vertical scrolling.
 - Filters and Saved Views (LocalStorage).
+- **Timeline engine (Phase B):**
+- **Now page is home (`/`):** Overdue · This week · Next 30 days · Needs
+  attention · Recently done; filters by assignee, phase, entity; one-tap done,
+  snooze a week, open. The net-worth dashboard is `/overview`.
+- **Derived feeds** (bills due, trust review, not verified lately, stale
+  values, unreachable contacts, beneficiary gaps) computed at read time.
+- **Playbooks**, with the editable default death-of-trustor playbook.
 - **Durability:**
 - Backup (JSON/HTML) & Restore, covering **every** table including association rows.
 - Single source of truth: `src/services/backup_schema.py`.
@@ -125,14 +137,17 @@ Consequences to respect:
 - [ ] UI for uploading PDFs/Images to specific assets.
 - [ ] Gallery view for receipts/titles.
 
-2. **Logic Engine & Notifications:**
+2. **Notifications:**
 
-- [ ] Automated Health Checks (e.g., "Warn if Asset has no Beneficiary").
-- [ ] **Notification System:** Handle email/local alerts for Annual Reviews (as configured in Details).
+- [ ] Email / push digest of the Now page. Not decided. What it would need:
+  a cron entry calling a script that builds `events.now_sections()` for
+  today, an SMTP setting per dataset, and a "sent" record so a digest is not
+  repeated. The feeds already compute everything a digest would say.
 
 3. **Transition Protocol:**
 
-- [ ] "In Case of Emergency" view for Trustees (unlocked via specific protocol).
+- [x] Death-of-trustor playbook (runs on the date of passing; Phase B).
+- [ ] "In Case of Emergency" printable view for Trustees (Phase D).
 
 ## 4.5 Non-Negotiables When Changing the Schema
 
@@ -166,16 +181,18 @@ fails the build if it happens again. Serialization is driven off the column
 types, so a new **column** on an existing model is covered automatically.
 
 **3. Changing the backup layout bumps `BACKUP_VERSION` and keeps old files
-restorable.** v1/v2 files go through `src/services/v2_upgrade.py`, the same
-converter the v3 migration uses on an old database. That file is frozen; a v4
-gets its own step.
+restorable.** Old files are converted one frozen step at a time, each step
+the same code its migration runs on an old database:
+`src/services/v2_upgrade.py` (v1/v2 -> v3) then `src/services/v3_upgrade.py`
+(v3 -> v4: task + milestone -> event, plus the default playbook). A v5 gets
+its own step.
 
 ```bash
 pip install -r requirements-dev.txt
 make test
 ```
 
-## 5. Database Schema Key Points (v3)
+## 5. Database Schema Key Points (v4)
 
 - **Entity:** exactly one root per dataset, `kind = trust`, `is_root = 1`
   (enforced in the database). It carries the trust's name, dates, review
@@ -200,7 +217,28 @@ make test
   holding's value.
 - **Sub-items on every holding:** `PropertyStructure`, `LocationPoint`,
   `RecurringBill` (`amount_cents`), `HoldingVendor`.
-- **Task / Milestone:** kept as-is until Phase B replaces them with `event`.
+- **Event:** the timeline. `kind` (task · deadline · renewal · review ·
+  milestone · memory), `date` (nullable = undated), `done_at`, `assignee_id`,
+  `phase` (now · planning · transition · administration), optional links to a
+  holding / entity / person, `source`, and `repeat_every` + `repeat_unit`
+  (done spawns the next one, counted from the event's own date).
+- **Derived items are not rows.** `src/services/feeds.py` computes them on
+  every read. Each has a `source` key with its cycle after the `@`
+  (`bill:42@2026-11-01`, `verify:holding:7@never`). Touching one (done,
+  snooze, note) writes ONE event with that source; `uq_event_source` makes a
+  second impossible and the feed skips any source that has a row. Done runs
+  the feed's `on_done`, which moves the record to its next cycle (a bill's
+  next due date, a verified stamp), so the next cycle is a new key.
+  **Never delete a derived event's row** - the item would come straight
+  back; the delete route marks it done instead.
+- **Adding a feed** = one `Feed(...)` in `FEEDS` with a unique `prefix`.
+  Per-type thresholds (`verify_days`, `revalue_days`) live on each type in
+  `src/holding_types.py`.
+- **Playbook / PlaybookStep:** steps are `offset_days` after a trigger date,
+  with a `who_role` (a PERSON_ROLES code) and a document to find. A run
+  writes one event per step, `phase=transition`, source
+  `playbook:<id>@<date>:step:<step id>` (so running twice adds nothing).
+  Setting the trust's `date_death_actual` offers the `death_of_trustor` one.
 - **Every table:** `created_at`, `updated_at`, `last_verified` (set only by
   "mark verified").
 - **Money is Integer cents; dates are `Date`.** `src/money.py` and the
@@ -257,4 +295,4 @@ flask db upgrade
 
 ---
 
-_Last Updated: ledger v3 (holding / entity / shares), migrations on start._
+_Last Updated: Phase B timeline engine (event / feeds / playbooks, Now page, backup v4)._

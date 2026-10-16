@@ -17,7 +17,8 @@ from flask_migrate import upgrade
 from app import create_app
 from src.extensions import db
 from src.models import (Person, Entity, Holding, Valuation, BeneficiaryDesignation,
-                        PropertyStructure, LocationPoint, RecurringBill, HoldingVendor)
+                        PropertyStructure, LocationPoint, RecurringBill, HoldingVendor, Event)
+from src.services import default_playbook
 from src.services.backup_schema import BACKUP_MODELS
 from src.services.estate import get_root_entity
 
@@ -112,7 +113,7 @@ def seed_generalized_data():
                           longitude=-117.161087, description="Front flowerbed, under the large fake rock."),
             RecurringBill(holding_id=house.id, name="City Water", payee="Metro Water Dept",
                           account_number="9988-7766-55", amount_cents=cents(85), frequency="Monthly",
-                          is_autopay=True),
+                          is_autopay=True, next_due_date=today + timedelta(days=1)),
             RecurringBill(holding_id=house.id, name="Property Tax", payee="County Treasurer",
                           amount_cents=cents(6500), frequency="Annual",
                           next_due_date=date(today.year if today.month < 11 else today.year + 1, 11, 1)),
@@ -243,6 +244,35 @@ def seed_generalized_data():
                 (today, 140000, "CPA valuation, half of book value"))
         db.session.add(BeneficiaryDesignation(holding_id=units.id, person_id=junior.id,
                                               percentage=100, kind="trust_schedule"))
+
+        print("--- [EXAMPLE] The timeline ---")
+        default_playbook.install(db.session)
+        db.session.add_all([
+            Event(kind="milestone", title="Trust signed", date=root.date_established,
+                  done_at=root.date_established, phase="planning", entity_id=root.id,
+                  description="Signed at Example & Partners; originals to the fire safe."),
+            Event(kind="milestone", title="House retitled to the trust", date=date(2012, 6, 1),
+                  done_at=date(2012, 6, 1), phase="planning", holding_id=house.id),
+            Event(kind="memory", title="Junior's graduation", date=date(2019, 6, 14),
+                  done_at=date(2019, 6, 14), phase="now", person_id=junior.id,
+                  description="The watch was promised to him that day."),
+            Event(kind="renewal", title="Renew the homeowner's policy",
+                  date=today + timedelta(days=20), phase="now", holding_id=house.id,
+                  assignee_id=jane.id, repeat_every=1, repeat_unit="year"),
+            Event(kind="task", title="Test the smoke detectors", date=today + timedelta(days=4),
+                  phase="now", holding_id=house.id, assignee_id=john.id,
+                  repeat_every=6, repeat_unit="month"),
+            Event(kind="task", title="Send Junior a copy of the successor trustee letter",
+                  date=today - timedelta(days=3), phase="planning", assignee_id=john.id,
+                  person_id=junior.id),
+            Event(kind="deadline", title="Pay the 2025 federal balance", date=date(today.year + 1, 4, 15),
+                  phase="now", holding_id=tax.id, assignee_id=jane.id),
+            Event(kind="task", title="Decide who gets the remaining 10% of the index fund",
+                  date=None, phase="planning", holding_id=stock.id, assignee_id=jane.id),
+            Event(kind="task", title="Book the annual meeting with the attorney",
+                  date=today - timedelta(days=10), done_at=today - timedelta(days=2),
+                  phase="planning", person_id=attorney.id, assignee_id=john.id),
+        ])
 
         db.session.commit()
         n = db.session.query(Holding).count()

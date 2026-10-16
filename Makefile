@@ -7,6 +7,8 @@
 # There is no default. Picking the wrong estate by omission is the one mistake
 # this layout exists to prevent.
 DATASET ?=
+# Linux hosts often have only python3; Windows dev boxes use ops.ps1.
+PYTHON ?= python3
 ENV_FILE = datasets/$(DATASET).env
 COMPOSE = docker compose --env-file $(ENV_FILE)
 
@@ -87,7 +89,7 @@ wipe: protected-guard
 
 # Tests need no container and no dataset
 test:
-	python -m pytest tests/ -q
+	$(PYTHON) -m pytest tests/ -q
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
