@@ -17,12 +17,25 @@
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-title">The Trust</div>
 
-        {% if dataset_label %}
-        <div class="dataset-badge {% if dataset_protected %}dataset-badge-live{% endif %}">
-            {{ dataset_label }}
-        </div>
-        {% endif %}
+        {# The badge IS the estate switcher: the estate on screen is always the
+           selected option, so a tab names its estate before anything is edited. #}
+        <form class="estate-switch" method="get" action="{{ url_for('estates.go') }}">
+            <label for="estateSelect" class="estate-switch-label">Estate</label>
+            <select id="estateSelect" name="slug"
+                    class="dataset-badge {% if estate and estate.protected %}dataset-badge-live{% endif %}"
+                    onchange="this.form.submit()">
+                {% if not estate %}<option value="" selected disabled>Choose an estate</option>{% endif %}
+                {% for e in estate_list %}
+                <option value="{{ e.slug }}" {% if estate and e.slug == estate.slug %}selected{% endif %}>
+                    {{ e.label }}{% if e.protected %} · real data{% endif %}
+                </option>
+                {% endfor %}
+                <option value="__new__">+ New estate…</option>
+            </select>
+            <noscript><button type="submit">Go</button></noscript>
+        </form>
 
+        {% if estate %}
         <nav>
             <a href="{{ url_for('main.now') }}" class="nav-item {% if active_page == 'now' %}active{% endif %}">
                 Now
@@ -50,8 +63,12 @@
             </a>
         </nav>
 
+        {% endif %}
+
         <div style="margin-top: auto; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1);">
+            {% if estate %}
             <a href="{{ url_for('settings.index') }}" class="nav-item {% if active_page == 'settings' %}active{% endif %}">Settings</a>
+            {% endif %}
             <a href="{{ url_for('auth.logout') }}" class="nav-item" style="color: #fca5a5;">Logout</a>
         </div>
     </aside>

@@ -12,7 +12,7 @@ def login():
         if verify_password(password):
             session.clear()
             session['is_admin'] = True
-            return redirect(url_for('main.now'))
+            return redirect(url_for('estates.home'))
         else:
             error = 'Invalid Password'
             flash(error)

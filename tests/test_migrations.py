@@ -17,10 +17,10 @@ from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from flask_migrate import upgrade
 
-from app import create_app
 from src.extensions import db as _db
 from src.services.backup_codec import row_kwargs
-from tests.conftest import TestConfig
+from flask import g
+from tests.conftest import make_app
 
 HERE = os.path.dirname(__file__)
 MIGRATIONS = os.path.join(HERE, "..", "migrations")
@@ -38,10 +38,9 @@ V2_TABLES = [
 
 @pytest.fixture
 def file_app(tmp_path):
-    class FileConfig(TestConfig):
-        SQLALCHEMY_DATABASE_URI = f"sqlite:///{tmp_path / 'estate.db'}"
-    application = create_app(FileConfig)
+    application = make_app(tmp_path)
     with application.app_context():
+        g.estate = "test"
         yield application
         _db.session.remove()
         _db.engine.dispose()

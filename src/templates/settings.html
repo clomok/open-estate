@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>System Settings</h2>
+<h2>Settings · {{ estate.label }}</h2>
+<p style="color: #666; font-size: 0.9rem; margin-top: -0.5rem;">
+    Backup and restore act on this estate only. Each estate is its own database file;
+    switch estates from the sidebar.
+</p>
 
 <div class="grid">
     <div class="card">
@@ -15,6 +19,17 @@
         </a>
     </div>
 
+    {% if estate.protected %}
+    <div class="card" style="border-left: 4px solid #f59e0b;">
+        <h3 style="color: #b45309;">Protected: real data</h3>
+        <p style="color: #666; font-size: 0.9rem;">
+            This estate cannot be seeded, wiped or restored over, from this page or from
+            the command line. To lift the guard, set <code>"protected": false</code> for
+            <code>{{ estate.slug }}</code> in <code>instance/estates.json</code> by hand,
+            after taking a backup.
+        </p>
+    </div>
+    {% else %}
     <div class="card" style="border-left: 4px solid #f59e0b;">
         <h3 style="color: #b45309;">Restore Data</h3>
         <p style="color: #666; font-size: 0.9rem;">
@@ -38,5 +53,21 @@
             </button>
         </form>
     </div>
+
+    <div class="card">
+        <h3>Mark as real data</h3>
+        <p style="color: #666; font-size: 0.9rem;">
+            Once this estate holds a real trust, protect it: seed, wipe and restore will
+            refuse it. There is no button that undoes this.
+        </p>
+        <form method="post" action="{{ url_for('settings.protect') }}" style="margin-top: 1rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" onclick="return confirm('Protect this estate? Only a hand edit of estates.json undoes it.')"
+                    style="background: #374151; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
+                Protect this estate
+            </button>
+        </form>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

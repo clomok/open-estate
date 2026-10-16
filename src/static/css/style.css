@@ -61,9 +61,25 @@ body {
 
 /* Which dataset is loaded. Muted for demo/dev, warm for a protected (real)
    estate, so the tab you are about to edit identifies itself at a glance. */
+.estate-switch {
+    margin-bottom: 1.5rem;
+}
+
+.estate-switch-label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
 .dataset-badge {
     display: inline-block;
-    margin-bottom: 1.5rem;
+    max-width: 100%;
+    cursor: pointer;
+    background-color: transparent;
+    font-family: inherit;
     padding: 0.2rem 0.6rem;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 999px;
@@ -72,6 +88,12 @@ body {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.7);
+}
+
+/* The open list is drawn by the OS; keep its text readable on a light menu. */
+.dataset-badge option {
+    color: #111827;
+    text-transform: none;
 }
 
 .dataset-badge-live {

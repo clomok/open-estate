@@ -1,10 +1,14 @@
-"""Load the fake demo estate ("John & Jane Doe") into an EMPTIED database.
+"""Load the fake demo estate ("John & Jane Doe") into an EMPTIED estate.
 
-Refused on a DATASET_PROTECTED=1 dataset by the Makefile and ops.ps1 before
-this file ever runs. It does not drop or recreate tables: the schema belongs
-to the migrations, so it upgrades to head, deletes every row, and inserts.
+    python scripts/seed_example.py --estate demo
+
+The estate is named, never defaulted, and a protected estate (real data) is
+refused here, in the script itself - not only by the Makefile or ops.ps1 in
+front of it. It does not drop or recreate tables: the schema belongs to the
+migrations, so it upgrades to head, deletes every row, and inserts.
 """
 
+import argparse
 import sys
 import os
 from datetime import date, timedelta
@@ -12,9 +16,11 @@ from datetime import date, timedelta
 # Add project root to path so imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from flask import g
 from flask_migrate import upgrade
 
 from app import create_app
+from src import estates
 from src.extensions import db
 from src.models import (Person, Entity, Holding, Valuation, BeneficiaryDesignation,
                         PropertyStructure, LocationPoint, RecurringBill, HoldingVendor, Event)
@@ -53,8 +59,13 @@ def person(name, roles, **kw):
     return p
 
 
-def seed_generalized_data():
+def seed_generalized_data(slug):
+    entry = estates.get(app.config["ESTATES_ROOT"], estates.check_slug(slug))
+    if entry is None:
+        raise estates.EstateError(f"No estate named '{slug}' in estates.json.")
+    estates.require_unprotected(entry, "seeded")
     with app.app_context():
+        g.estate = slug
         print("--- [EXAMPLE] Bringing the schema to head ---")
         upgrade(directory=MIGRATIONS)
 
@@ -280,4 +291,10 @@ def seed_generalized_data():
 
 
 if __name__ == "__main__":
-    seed_generalized_data()
+    ap = argparse.ArgumentParser(description="Load the fake demo estate into an estate.")
+    ap.add_argument("--estate", required=True, help="slug of the estate to overwrite")
+    try:
+        seed_generalized_data(ap.parse_args().estate)
+    except estates.EstateError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
