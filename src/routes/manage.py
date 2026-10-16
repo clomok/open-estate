@@ -5,10 +5,14 @@ from sqlalchemy.exc import IntegrityError
 
 from src.extensions import db
 from src.models import (Holding, Person, Valuation, PropertyStructure, LocationPoint,
-                        RecurringBill, HoldingVendor, BeneficiaryDesignation, Entity)
+                        RecurringBill, HoldingVendor, BeneficiaryDesignation, Entity,
+                        Event, Playbook, PlaybookStep)
 from src.forms import (build_holding_form, ValuationForm, PersonForm, DesignationForm,
                        StructureForm, LocationPointForm, RecurringBillForm,
-                       HoldingVendorForm, TrustProfileForm, EntityForm)
+                       HoldingVendorForm, TrustProfileForm, EntityForm,
+                       EventForm, PlaybookForm, PlaybookStepForm, RunPlaybookForm)
+from src.services import events as event_service, playbooks as playbook_service
+from src.services import default_playbook
 from src.holding_types import (SIDES, SIDE_META, get_type, types_for, parse_field,
                                validate_attributes, input_value)
 from src.services.auth_service import login_required
@@ -513,11 +517,19 @@ def delete_subitem(holding_id, subitem_type, item_id):
 def edit_trust_profile():
     root = get_root_entity()
     form = TrustProfileForm(obj=root)
+    died_before = root.date_death_actual
 
     if form.validate_on_submit():
         form.populate_obj(root)
         db.session.commit()
         flash('Trust details updated.', 'success')
+        # Filling in the date of passing offers the transition playbook.
+        pb = playbook_service.death_playbook()
+        if root.date_death_actual and root.date_death_actual != died_before and pb:
+            if not any(d == root.date_death_actual.isoformat()
+                       for d, _ in playbook_service.runs(pb)):
+                return redirect(url_for('manage.run_playbook', id=pb.id,
+                                        date=root.date_death_actual.isoformat(), offered=1))
         return redirect(url_for('main.details_view'))
 
     return render_template('manage_trust.html', form=form, title="Edit Trust Details", active_page='details')
@@ -572,3 +584,261 @@ def delete_entity(id):
         db.session.commit()
         flash(f'Removed {entity.name}.', 'success')
     return redirect(url_for('main.details_view'))
+
+
+# --- EVENTS ------------------------------------------------------------------------
+
+def _event_choices(form):
+    people = Person.query.order_by(Person.name).all()
+    form.assignee_id.choices = [(0, '— Nobody yet —')] + [(p.id, p.name) for p in people]
+    form.person_id.choices = [(0, '—')] + [(p.id, p.name) for p in people]
+    form.holding_id.choices = [(0, '—')] + [
+        (h.id, f"{h.icon} {h.name}") for h in Holding.query.order_by(Holding.name).all()]
+    root = get_root_entity()
+    form.entity_id.choices = [(0, '—'), (root.id, f"{root.name} (the trust)")] + [
+        (e.id, f"{e.name} · {e.kind_label}") for e in addon_entities()]
+
+
+def _event_from_form(event, form):
+    event.title = form.title.data
+    event.kind = form.kind.data
+    event.date = form.date.data
+    event.phase = form.phase.data
+    event.assignee_id = form.assignee_id.data or None
+    event.description = (form.description.data or '').strip() or None
+    event.holding_id = form.holding_id.data or None
+    event.entity_id = form.entity_id.data or None
+    event.person_id = form.person_id.data or None
+    event.repeat_every = form.repeat_every.data if form.repeat_unit.data else None
+    event.repeat_unit = form.repeat_unit.data or None
+
+
+def _back(default):
+    nxt = request.values.get('next') or ''
+    # Only ever bounce back inside this app.
+    return nxt if nxt.startswith('/') and not nxt.startswith('//') else default
+
+
+@bp.route('/event/new', methods=['GET', 'POST'])
+@login_required
+def create_event():
+    form = EventForm()
+    _event_choices(form)
+    if request.method == 'GET':
+        for key in ('holding_id', 'entity_id', 'person_id', 'assignee_id'):
+            if request.args.get(key, type=int):
+                getattr(form, key).data = request.args.get(key, type=int)
+        if request.args.get('kind'):
+            form.kind.data = request.args['kind']
+        if request.args.get('phase'):
+            form.phase.data = request.args['phase']
+        if request.args.get('date'):
+            try:
+                form.date.data = date.fromisoformat(request.args['date'])
+            except ValueError:
+                pass
+
+    if form.validate_on_submit():
+        event = Event()
+        _event_from_form(event, form)
+        db.session.add(event)
+        db.session.flush()
+        if form.done.data:
+            event_service.complete(f"event:{event.id}")
+        db.session.commit()
+        flash(f'Added "{event.title}".', 'success')
+        return redirect(_back(url_for('main.now')))
+    return render_template('manage_event.html', form=form, event=None,
+                           title='Add to the timeline', active_page='now')
+
+
+@bp.route('/event/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_event(id):
+    event = Event.query.get_or_404(id)
+    form = EventForm(obj=event)
+    _event_choices(form)
+    if request.method == 'GET':
+        for key in ('holding_id', 'entity_id', 'person_id', 'assignee_id'):
+            getattr(form, key).data = getattr(event, key) or 0
+        form.repeat_unit.data = event.repeat_unit or ''
+        form.done.data = event.is_done
+
+    if form.validate_on_submit():
+        was_done = event.is_done
+        _event_from_form(event, form)
+        if form.done.data and not was_done:
+            event_service.complete(f"event:{event.id}")
+        elif not form.done.data and was_done:
+            event.done_at = None
+        db.session.commit()
+        flash(f'Saved "{event.title}".', 'success')
+        return redirect(_back(url_for('main.now')))
+    return render_template('manage_event.html', form=form, event=event,
+                           title='Edit event', active_page='now')
+
+
+@bp.route('/event/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_event(id):
+    event = Event.query.get_or_404(id)
+    if event.source and not event.source.startswith('playbook:'):
+        # A derived item's row is what keeps the feed from offering it again.
+        # Deleting it would bring the item straight back, so it is closed instead.
+        if not event.is_done:
+            event.done_at = date.today()
+        db.session.commit()
+        flash('That item is worked out from your records, so it was marked done '
+              'rather than deleted.', 'success')
+    else:
+        db.session.delete(event)
+        db.session.commit()
+        flash(f'Deleted "{event.title}".', 'success')
+    return redirect(_back(url_for('main.now')))
+
+
+@bp.route('/timeline/act', methods=['POST'])
+@login_required
+def timeline_action():
+    """The one-tap buttons. `key` is a row key: event:<id> or a feed source."""
+    key = request.form.get('key', '')
+    action = request.form.get('action', '')
+    back = _back(url_for('main.now'))
+    try:
+        if action == 'done':
+            event, spawned = event_service.complete(key)
+            msg = f'Done: {event.title}.'
+            if spawned:
+                msg += f' Next one is on {spawned.date.isoformat()}.'
+        elif action == 'snooze':
+            event = event_service.snooze(key)
+            msg = f'Snoozed to {event.date.isoformat()}: {event.title}.'
+        elif action == 'reopen':
+            event = event_service.reopen(key)
+            msg = f'Reopened: {event.title}.'
+        elif action == 'note':
+            event = event_service.materialise(key)
+            db.session.commit()
+            return redirect(url_for('manage.edit_event', id=event.id, next=back))
+        else:
+            abort(400)
+    except event_service.NotFound:
+        db.session.rollback()
+        flash('That item no longer applies - the record behind it has changed.', 'error')
+        return redirect(back)
+    db.session.commit()
+    flash(msg, 'success')
+    return redirect(back)
+
+
+# --- PLAYBOOKS -----------------------------------------------------------------------
+
+@bp.route('/playbook/new', methods=['GET', 'POST'])
+@bp.route('/playbook/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def manage_playbook(id=None):
+    pb = Playbook.query.get_or_404(id) if id else None
+    form = PlaybookForm(obj=pb)
+    if request.method == 'GET' and pb is not None:
+        form.trigger.data = pb.trigger or ''
+    if form.validate_on_submit():
+        if pb is None:
+            pb = Playbook()
+            db.session.add(pb)
+        pb.name = form.name.data
+        pb.description = form.description.data or None
+        pb.trigger = form.trigger.data or None
+        db.session.commit()
+        flash(f'Saved {pb.name}.', 'success')
+        return redirect(url_for('main.playbook_view', id=pb.id))
+    return render_template('manage_playbook.html', form=form, playbook=pb,
+                           title=f'Edit {pb.name}' if pb else 'New playbook',
+                           active_page='playbooks')
+
+
+@bp.route('/playbook/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_playbook(id):
+    pb = Playbook.query.get_or_404(id)
+    db.session.delete(pb)
+    db.session.commit()
+    flash(f'Deleted {pb.name}. Events it already created are kept.', 'success')
+    return redirect(url_for('main.playbooks_view'))
+
+
+@bp.route('/playbook/default', methods=['POST'])
+@login_required
+def install_default_playbook():
+    pb = default_playbook.install(db.session)
+    db.session.commit()
+    flash('Added a fresh copy of the default playbook.', 'success')
+    return redirect(url_for('main.playbook_view', id=pb.id))
+
+
+@bp.route('/playbook/<int:id>/step/new', methods=['GET', 'POST'])
+@bp.route('/playbook/<int:id>/step/<int:step_id>/edit', methods=['GET', 'POST'])
+@login_required
+def manage_step(id, step_id=None):
+    pb = Playbook.query.get_or_404(id)
+    step = PlaybookStep.query.get_or_404(step_id) if step_id else None
+    if step is not None and step.playbook_id != pb.id:
+        abort(404)
+    form = PlaybookStepForm(obj=step)
+    if request.method == 'GET' and step is not None:
+        form.who_role.data = step.who_role or ''
+    if form.validate_on_submit():
+        if step is None:
+            step = PlaybookStep(playbook_id=pb.id,
+                                position=max((s.position for s in pb.steps), default=-1) + 1)
+            db.session.add(step)
+        step.offset_days = form.offset_days.data or 0
+        step.title = form.title.data
+        step.kind = form.kind.data
+        step.who_role = form.who_role.data or None
+        step.instructions = form.instructions.data or None
+        step.document_type = form.document_type.data or None
+        db.session.commit()
+        flash('Step saved.', 'success')
+        return redirect(url_for('main.playbook_view', id=pb.id) + f'#step-{step.id}')
+    return render_template('manage_step.html', form=form, playbook=pb, step=step,
+                           title='Edit step' if step else 'Add a step',
+                           active_page='playbooks')
+
+
+@bp.route('/playbook/<int:id>/step/<int:step_id>/delete', methods=['POST'])
+@login_required
+def delete_step(id, step_id):
+    step = PlaybookStep.query.get_or_404(step_id)
+    if step.playbook_id != id:
+        abort(404)
+    db.session.delete(step)
+    db.session.commit()
+    flash('Step removed.', 'success')
+    return redirect(url_for('main.playbook_view', id=id))
+
+
+@bp.route('/playbook/<int:id>/run', methods=['GET', 'POST'])
+@login_required
+def run_playbook(id):
+    pb = Playbook.query.get_or_404(id)
+    form = RunPlaybookForm()
+    if request.method == 'GET' and request.args.get('date'):
+        try:
+            form.trigger_date.data = date.fromisoformat(request.args['date'])
+        except ValueError:
+            pass
+    if form.validate_on_submit():
+        created, skipped = playbook_service.run(pb, form.trigger_date.data)
+        db.session.commit()
+        msg = f'{len(created)} events added to the timeline from "{pb.name}".'
+        if skipped:
+            msg += f' {skipped} were already there from an earlier run on this date.'
+        flash(msg, 'success')
+        return redirect(url_for('main.now', phase='transition'))
+    preview_date = form.trigger_date.data
+    return render_template('run_playbook.html', form=form, playbook=pb,
+                           preview_date=preview_date,
+                           already=[d for d, _ in playbook_service.runs(pb)],
+                           offered=request.args.get('offered'),
+                           disclaimer=default_playbook.DISCLAIMER,
+                           title=f'Run {pb.name}', active_page='playbooks')

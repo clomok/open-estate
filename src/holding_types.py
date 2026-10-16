@@ -13,7 +13,7 @@ Adding a built-in type is one entry below. Adding a type nobody anticipated
 needs no code at all: every side has `custom`, whose fields the user names.
 """
 
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass, field as dc_field, replace
 from datetime import date
 
 from src.money import to_cents, format_cents, cents_to_input
@@ -68,6 +68,10 @@ class HoldingType:
     icon: str
     fields: tuple = dc_field(default_factory=tuple)
     custom: bool = False
+    # The Now page flags a holding when nobody has pressed "mark verified" in
+    # this many days, and when its newest valuation is this old.
+    verify_days: int = 365
+    revalue_days: int = 365
 
     def field(self, name):
         for f in self.fields:
@@ -184,6 +188,17 @@ _TYPES = [
 # Every side also takes a user-defined type: its label and fields are data.
 for _side in SIDES:
     _TYPES.append(HoldingType(_side, "custom", "Custom…", "✳️", (), custom=True))
+
+# How long a value stays believable. Balances move every month; an
+# appraisal of a painting is good for years. Unlisted types keep 365 days.
+_REVALUE_DAYS = {
+    ("asset", "bank"): 90, ("asset", "investment"): 90, ("asset", "retirement"): 90,
+    ("asset", "jewelry"): 1095, ("asset", "art"): 1095,
+    ("liability", "mortgage"): 90, ("liability", "loan"): 90,
+    ("liability", "credit_line"): 90,
+}
+_TYPES = [replace(t, revalue_days=_REVALUE_DAYS.get((t.side, t.code), t.revalue_days))
+          for t in _TYPES]
 
 REGISTRY = {(t.side, t.code): t for t in _TYPES}
 

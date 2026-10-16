@@ -2,13 +2,15 @@ from datetime import date
 
 from flask_wtf import FlaskForm
 from wtforms import (StringField, SelectField, FloatField, BooleanField, SubmitField,
-                     TextAreaField, DateField, SelectMultipleField)
+                     TextAreaField, DateField, SelectMultipleField, IntegerField)
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 from wtforms.widgets import ListWidget, CheckboxInput
 
 from src.holding_types import parse_field, FREQUENCIES
 from src.models import (PERSON_ROLES, ENTITY_KINDS, ENTITY_KIND_LABELS,
-                        DESIGNATION_KINDS, DESIGNATION_KIND_LABELS)
+                        DESIGNATION_KINDS, DESIGNATION_KIND_LABELS,
+                        EVENT_KINDS, EVENT_KIND_LABELS, EVENT_PHASES, EVENT_PHASE_LABELS,
+                        REPEAT_UNITS)
 from src.money import to_cents, cents_to_input
 
 
@@ -191,3 +193,61 @@ class EntityForm(FlaskForm):
     date_established = DateField('Date established / opened', validators=[Optional()])
     notes = TextAreaField('Notes')
     submit = SubmitField('Save')
+
+
+
+# --- The timeline ----------------------------------------------------------
+
+class EventForm(FlaskForm):
+    """Choices for assignee / holding / entity / person are filled in by the
+    route; 0 means none."""
+    title = StringField('What', validators=[DataRequired(), Length(max=200)])
+    kind = SelectField('Kind', choices=[(k, EVENT_KIND_LABELS[k]) for k in EVENT_KINDS])
+    date = DateField('When', validators=[Optional()],
+                     description="Leave empty for 'whenever, but do it'.")
+    phase = SelectField('Phase', choices=[(p, EVENT_PHASE_LABELS[p]) for p in EVENT_PHASES])
+    assignee_id = SelectField('Who does it', coerce=int, validators=[Optional()])
+    description = TextAreaField('Notes', render_kw={"rows": 4})
+    holding_id = SelectField('About this holding', coerce=int, validators=[Optional()])
+    entity_id = SelectField('About this entity', coerce=int, validators=[Optional()])
+    person_id = SelectField('About this person', coerce=int, validators=[Optional()])
+    repeat_every = IntegerField('Repeat every', validators=[Optional(), NumberRange(1, 1000)])
+    repeat_unit = SelectField('', choices=[("", "— no repeat —")] + [(u, u + "(s)") for u in REPEAT_UNITS],
+                              validators=[Optional()])
+    done = BooleanField('Done')
+    submit = SubmitField('Save')
+
+    def validate(self, extra_validators=None):
+        # Not a field validator: Optional() ends the chain on an empty field,
+        # and the mistake here is exactly one half being empty.
+        ok = super().validate(extra_validators)
+        if bool(self.repeat_unit.data) != bool(self.repeat_every.data):
+            self.repeat_unit.errors = list(self.repeat_unit.errors) + [
+                "Give both a number and a unit, or neither."]
+            return False
+        return ok
+
+
+class PlaybookForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField('What it is for', render_kw={"rows": 4})
+    trigger = SelectField('Offered when', choices=[
+        ("", "Run by hand only"),
+        ("death_of_trustor", "The trust's date of passing is filled in")])
+    submit = SubmitField('Save playbook')
+
+
+class PlaybookStepForm(FlaskForm):
+    offset_days = IntegerField('Days after the trigger date', default=0,
+                               validators=[Optional(), NumberRange(0, 3650)])
+    title = StringField('Step', validators=[DataRequired(), Length(max=200)])
+    kind = SelectField('Kind', choices=[(k, EVENT_KIND_LABELS[k]) for k in EVENT_KINDS])
+    who_role = SelectField('Who does it (by role)', choices=[("", "—")] + PERSON_ROLES)
+    instructions = TextAreaField('Instructions', render_kw={"rows": 4})
+    document_type = StringField('Document to find first', validators=[Optional(), Length(max=100)])
+    submit = SubmitField('Save step')
+
+
+class RunPlaybookForm(FlaskForm):
+    trigger_date = DateField('Trigger date', validators=[DataRequired()])
+    submit = SubmitField('Create the events')
