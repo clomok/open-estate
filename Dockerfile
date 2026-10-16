@@ -25,5 +25,7 @@ ENV PYTHONPATH=/app
 # Expose port
 EXPOSE 5000
 
-# Command: List files (for debugging logs) then run Gunicorn
-CMD echo "--- Checking for app.py ---" && ls -la && echo "--- Starting Gunicorn ---" && gunicorn -w 2 -b 0.0.0.0:5000 app:app
+# Command: bring the database up to the current schema (it copies the file to
+# instance/backups/ first), then run Gunicorn. A failed migration stops the
+# container instead of serving new code against an old schema.
+CMD python scripts/upgrade_db.py && exec gunicorn -w 2 -b 0.0.0.0:5000 app:app

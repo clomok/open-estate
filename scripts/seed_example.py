@@ -1,331 +1,253 @@
+"""Load the fake demo estate ("John & Jane Doe") into an EMPTIED database.
+
+Refused on a DATASET_PROTECTED=1 dataset by the Makefile and ops.ps1 before
+this file ever runs. It does not drop or recreate tables: the schema belongs
+to the migrations, so it upgrades to head, deletes every row, and inserts.
+"""
+
 import sys
 import os
-from datetime import date
+from datetime import date, timedelta
 
 # Add project root to path so imports work
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from flask_migrate import upgrade
+
 from app import create_app
 from src.extensions import db
-from src.models import Person, Asset, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor
+from src.models import (Person, Entity, Holding, Valuation, BeneficiaryDesignation,
+                        PropertyStructure, LocationPoint, RecurringBill, HoldingVendor)
+from src.services.backup_schema import BACKUP_MODELS
+from src.services.estate import get_root_entity
+
+MIGRATIONS = os.path.join(os.path.dirname(__file__), '..', 'migrations')
 
 app = create_app()
 
+
+def cents(dollars):
+    return int(round(dollars * 100))
+
+
+def history(holding, *points):
+    """points: (date, dollars, source[, notes]) - the newest sets the value."""
+    for p in points:
+        db.session.add(Valuation(holding_id=holding.id, date=p[0], value_cents=cents(p[1]),
+                                 source=p[2], notes=p[3] if len(p) > 3 else None))
+    holding.value_cents = cents(max(points, key=lambda p: p[0])[1])
+
+
+def holding(**kw):
+    h = Holding(**kw)
+    db.session.add(h)
+    db.session.flush()
+    return h
+
+
+def person(name, roles, **kw):
+    p = Person(name=name, **kw)
+    p.set_roles(roles)
+    db.session.add(p)
+    return p
+
+
 def seed_generalized_data():
     with app.app_context():
-        print("--- [EXAMPLE] Wiping Database ---")
-        db.drop_all()
-        db.create_all()
-        
-        print("--- [EXAMPLE] Seeding Generic People ---")
-        # Generic "John & Jane" setup
-        p1 = Person(name="John Doe", role="Trustor", email="john@example.com")
-        p2 = Person(name="Jane Doe", role="Trustor", email="jane@example.com")
-        ben = Person(name="Junior Doe", role="Beneficiary")
-        vendor = Person(name="Green Thumb Landscaping", role="Vendor", phone="555-0199")
-        
-        db.session.add_all([p1, p2, ben, vendor])
+        print("--- [EXAMPLE] Bringing the schema to head ---")
+        upgrade(directory=MIGRATIONS)
+
+        print("--- [EXAMPLE] Clearing every row ---")
+        for _, model in reversed(BACKUP_MODELS):
+            db.session.query(model).delete()
         db.session.commit()
+        today = date.today()
 
-        print("--- [EXAMPLE] Seeding Assets with Expanded Histories ---")
+        print("--- [EXAMPLE] The trust ---")
+        root = get_root_entity()
+        root.name = "The Doe Family Trust"
+        root.date_established = date(2012, 4, 18)
+        root.review_frequency = "Annual"
+        root.next_review_date = date(today.year + 1, 4, 18)
+        root.notes = "Revocable living trust. Original signed copy is in the fire safe."
 
-        # ==========================================
-        # 1. REAL ESTATE (Home)
-        # ==========================================
-        house = Asset(
-            name="Sample Family Home",
-            asset_type="RealEstate",
-            is_in_trust=True,
-            value_estimated=600000.0,
-            owner=None,
-            attributes={
-                "address": "123 Demo Lane, Metropolis",
-                "purchase_date": "2010-01-01",
-                "purchase_price": 400000.0
-            }
-        )
-        db.session.add(house)
-        db.session.commit()
+        print("--- [EXAMPLE] People ---")
+        john = person("John Doe", ["Trustor", "Trustee"], email="john@example.com", phone="555-0100")
+        jane = person("Jane Doe", ["Trustor", "Trustee"], email="jane@example.com", phone="555-0101")
+        junior = person("Junior Doe", ["Beneficiary", "SuccessorTrustee"], email="junior@example.com")
+        sis = person("Sally Doe", ["Beneficiary"])
+        gardener = person("Green Thumb Landscaping", ["Vendor"], kind="organisation", phone="555-0199")
+        attorney = person("Example & Partners LLP", ["Attorney"], kind="organisation",
+                          email="office@example.com", phone="555-0150")
+        mechanic = person("Main Street Garage", ["Vendor"], kind="organisation", phone="555-0177")
+        db.session.flush()
 
-        # History: Steady appreciation
-        db.session.add(Appraisal(asset_id=house.id, date=date(2010, 1, 1), value=400000.0, source="Purchase", notes="Original Purchase Price"))
-        db.session.add(Appraisal(asset_id=house.id, date=date(2015, 6, 15), value=475000.0, source="Refi Appraisal", notes="Renovations complete"))
-        db.session.add(Appraisal(asset_id=house.id, date=date(2018, 1, 1), value=525000.0, source="Tax Assessment"))
-        db.session.add(Appraisal(asset_id=house.id, date=date(2020, 1, 1), value=550000.0, source="Refi Appraisal"))
-        db.session.add(Appraisal(asset_id=house.id, date=date(2023, 1, 1), value=580000.0, source="Zillow"))
-        db.session.add(Appraisal(asset_id=house.id, date=date.today(), value=600000.0, source="Zillow", notes="Current Estimate"))
-        
-        # --- Phase 5: Demo Data (Sub-items) ---
-        # Structure
-        shed = PropertyStructure(
-            asset_id=house.id,
-            name="North Garden Shed",
-            structure_type="Outbuilding",
-            description="Prefab shed on concrete pad. Contains lawnmower and tools.",
-            date_last_maintained=date(2024, 5, 1)
-        )
-        
-        # Location Pin
-        water_main = LocationPoint(
-            asset_id=house.id,
-            label="Main Water Shutoff",
-            latitude=32.715736,
-            longitude=-117.161087,
-            description="In the front flowerbed, under the large fake rock."
-        )
-        
-        # Bills (Migrated Utility + Tax)
-        water_bill = RecurringBill(
-            asset_id=house.id,
-            name="City Water",
-            payee="Metro Water Dept",
-            account_number="9988-7766-55",
-            amount_estimated=85.00,
-            frequency="Monthly",
-            is_autopay=True
-        )
-        
-        tax_bill = RecurringBill(
-            asset_id=house.id,
-            name="Property Tax",
-            payee="County Treasurer",
-            amount_estimated=6500.00,
-            frequency="Annual",
-            next_due_date=date(date.today().year, 11, 1)
-        )
-        
-        # Vendor Link
-        gardener_job = AssetVendor(
-            asset_id=house.id,
-            person_id=vendor.id,
-            role="Gardener / Landscaper",
-            notes="Comes every Tuesday morning. Gate code: 1234."
-        )
-        
-        db.session.add_all([shed, water_main, water_bill, tax_bill, gardener_job])
+        print("--- [EXAMPLE] Entities attached to the trust ---")
+        john_personal = Entity(kind="individual", name="John Doe (personally held)",
+                               is_root=False, parent_id=root.id, person_id=john.id)
+        llc = Entity(kind="llc", name="Doe Rentals LLC", is_root=False, parent_id=root.id,
+                     date_established=date(2018, 9, 1), notes="EIN 00-0000000 (example)")
+        ira = Entity(kind="retirement_account", name="Jane's IRA", is_root=False, parent_id=root.id,
+                     person_id=None, notes="Passes by beneficiary form, not by the trust.")
+        db.session.add_all([john_personal, llc, ira])
+        db.session.flush()
 
-        # ==========================================
-        # 2. VEHICLE (Ford F-150)
-        # ==========================================
-        car = Asset(
-            name="2020 Ford F-150",
-            asset_type="Vehicle",
-            is_in_trust=False,
-            value_estimated=35000.0,
-            owner=p1,
-            attributes={
-                "vin": "1FTEW1E45LKD12345",
-                "license_plate": "TRK-999",
-                "purchase_date": "2020-05-15",
-                "purchase_price": 45000.0
-            }
-        )
-        db.session.add(car)
-        db.session.commit()
+        print("--- [EXAMPLE] Assets ---")
+        house = holding(side="asset", type_code="real_estate", name="Sample Family Home",
+                        attributes={"address": "123 Demo Lane, Metropolis",
+                                    "apn_number": "000-000-00",
+                                    "purchase_date": "2010-01-01", "purchase_price": cents(400000)})
+        history(house,
+                (date(2010, 1, 1), 400000, "Purchase", "Original purchase price"),
+                (date(2015, 6, 15), 475000, "Refi Appraisal", "Renovations complete"),
+                (date(2018, 1, 1), 525000, "Tax Assessment"),
+                (date(2020, 1, 1), 550000, "Refi Appraisal"),
+                (date(2023, 1, 1), 580000, "Zillow"),
+                (today, 600000, "Zillow", "Current estimate"))
+        db.session.add_all([
+            PropertyStructure(holding_id=house.id, name="North Garden Shed", structure_type="Outbuilding",
+                              description="Prefab shed on concrete pad. Lawnmower and tools.",
+                              date_last_maintained=date(2024, 5, 1)),
+            LocationPoint(holding_id=house.id, label="Main Water Shutoff", latitude=32.715736,
+                          longitude=-117.161087, description="Front flowerbed, under the large fake rock."),
+            RecurringBill(holding_id=house.id, name="City Water", payee="Metro Water Dept",
+                          account_number="9988-7766-55", amount_cents=cents(85), frequency="Monthly",
+                          is_autopay=True),
+            RecurringBill(holding_id=house.id, name="Property Tax", payee="County Treasurer",
+                          amount_cents=cents(6500), frequency="Annual",
+                          next_due_date=date(today.year if today.month < 11 else today.year + 1, 11, 1)),
+            HoldingVendor(holding_id=house.id, person_id=gardener.id, role="Gardener / Landscaper",
+                          notes="Comes every Tuesday morning. Gate code: 1234."),
+            BeneficiaryDesignation(holding_id=house.id, person_id=junior.id, percentage=50,
+                                   kind="trust_schedule", notes="Schedule A, item 1"),
+            BeneficiaryDesignation(holding_id=house.id, person_id=sis.id, percentage=50,
+                                   kind="trust_schedule"),
+        ])
 
-        # History: Depreciation curve
-        db.session.add(Appraisal(asset_id=car.id, date=date(2020, 5, 15), value=45000.0, source="Purchase", notes="Dealer Invoice"))
-        db.session.add(Appraisal(asset_id=car.id, date=date(2021, 5, 15), value=41000.0, source="KBB", notes="1 Year depreciation"))
-        db.session.add(Appraisal(asset_id=car.id, date=date(2022, 5, 15), value=38500.0, source="KBB"))
-        db.session.add(Appraisal(asset_id=car.id, date=date(2023, 5, 15), value=36000.0, source="CarMax Offer"))
-        db.session.add(Appraisal(asset_id=car.id, date=date.today(), value=35000.0, source="KBB", notes="Current Trade-in Value"))
+        truck = holding(side="asset", type_code="vehicle", name="2020 Ford F-150",
+                        entity_id=john_personal.id, owner_id=john.id,
+                        attributes={"year": "2020", "make": "Ford", "model": "F-150",
+                                    "vin": "1FTEW1E45LKD12345", "license_plate": "TRK-999",
+                                    "location_keys": "Hook inside the pantry door",
+                                    "purchase_date": "2020-05-15", "purchase_price": cents(45000)})
+        history(truck,
+                (date(2020, 5, 15), 45000, "Purchase", "Dealer invoice"),
+                (date(2021, 5, 15), 41000, "KBB"),
+                (date(2023, 5, 15), 36000, "CarMax Offer"),
+                (today, 35000, "KBB", "Current trade-in value"))
+        # Sub-items are not just for property: a truck has insurance and a mechanic.
+        db.session.add_all([
+            RecurringBill(holding_id=truck.id, name="Auto insurance", payee="Example Mutual",
+                          amount_cents=cents(1140), frequency="Annual",
+                          next_due_date=today + timedelta(days=45)),
+            HoldingVendor(holding_id=truck.id, person_id=mechanic.id, role="Mechanic",
+                          notes="Has the service history."),
+            BeneficiaryDesignation(holding_id=truck.id, person_id=junior.id, percentage=100,
+                                   kind="will"),
+        ])
 
-        # ==========================================
-        # 3. BANK (Chase)
-        # ==========================================
-        bank = Asset(
-            name="Chase Checking",
-            asset_type="Bank",
-            is_in_trust=True,
-            value_estimated=15000.0,
-            owner=None,
-            attributes={
-                "institution": "Chase",
-                "account_type": "Checking",
-                "account_number": "XXXX-1111"
-            }
-        )
-        db.session.add(bank)
-        db.session.commit()
-        
-        # History: Fluctuation of cash
-        db.session.add(Appraisal(asset_id=bank.id, date=date(2020, 1, 1), value=5000.0, source="Statement", notes="Account Opened"))
-        db.session.add(Appraisal(asset_id=bank.id, date=date(2021, 6, 1), value=8500.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=bank.id, date=date(2022, 12, 31), value=12000.0, source="Statement", notes="Year End Bonus"))
-        db.session.add(Appraisal(asset_id=bank.id, date=date(2023, 6, 30), value=10500.0, source="Statement", notes="Paid Taxes"))
-        db.session.add(Appraisal(asset_id=bank.id, date=date.today(), value=15000.0, source="Online Banking", notes="Current Balance"))
+        bank = holding(side="asset", type_code="bank", name="Chase Checking",
+                       attributes={"institution": "Chase", "account_type": "Checking",
+                                   "account_number": "XXXX-1111", "routing_number": "000000000"})
+        history(bank,
+                (date(2020, 1, 1), 5000, "Statement", "Account opened"),
+                (date(2022, 12, 31), 12000, "Statement"),
+                (today, 15000, "Online banking", "Current balance"))
 
-        # ==========================================
-        # 4. INVESTMENT (Vanguard)
-        # ==========================================
-        stock = Asset(
-            name="Vanguard Index Fund",
-            asset_type="Investment",
-            is_in_trust=True,
-            value_estimated=125000.0,
-            owner=None,
-            attributes={
-                "institution": "Vanguard",
-                "advisor_name": "Self-Directed"
-            }
-        )
-        db.session.add(stock)
-        db.session.commit()
-        
-        # History: Market growth
-        db.session.add(Appraisal(asset_id=stock.id, date=date(2016, 1, 1), value=50000.0, source="Statement", notes="Initial Roll-over"))
-        db.session.add(Appraisal(asset_id=stock.id, date=date(2019, 1, 1), value=85000.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=stock.id, date=date(2020, 3, 15), value=65000.0, source="Statement", notes="COVID Dip"))
-        db.session.add(Appraisal(asset_id=stock.id, date=date(2021, 12, 31), value=110000.0, source="Statement", notes="High Water Mark"))
-        db.session.add(Appraisal(asset_id=stock.id, date=date(2022, 10, 1), value=95000.0, source="Statement", notes="Bear Market"))
-        db.session.add(Appraisal(asset_id=stock.id, date=date.today(), value=125000.0, source="Online Portal"))
+        stock = holding(side="asset", type_code="investment", name="Vanguard Index Fund",
+                        attributes={"institution": "Vanguard", "advisor_name": "Self-directed"})
+        history(stock,
+                (date(2016, 1, 1), 50000, "Statement", "Initial roll-over"),
+                (date(2020, 3, 15), 65000, "Statement", "COVID dip"),
+                (date(2021, 12, 31), 110000, "Statement"),
+                (today, 125000, "Online portal"))
+        db.session.add_all([
+            BeneficiaryDesignation(holding_id=stock.id, person_id=junior.id, percentage=60,
+                                   kind="trust_schedule"),
+            BeneficiaryDesignation(holding_id=stock.id, person_id=sis.id, percentage=30,
+                                   kind="trust_schedule", notes="Remaining 10% not yet decided"),
+        ])
 
-        # ==========================================
-        # 5. JEWELRY (Engagement Ring)
-        # ==========================================
-        ring = Asset(
-            name="Engagement Ring",
-            asset_type="Jewelry",
-            is_in_trust=False,
-            value_estimated=8000.0,
-            owner=p2,
-            attributes={
-                "location": "Master Safe",
-                "appraisal_date": "2018-05-20",
-                "appraiser_info": "Local Jeweler"
-            }
-        )
-        db.session.add(ring)
-        db.session.commit()
+        iras = holding(side="asset", type_code="retirement", name="Jane's Traditional IRA",
+                       entity_id=ira.id, owner_id=jane.id,
+                       attributes={"institution": "Fidelity", "plan_type": "IRA",
+                                   "account_number": "XXXX-7788"})
+        history(iras, (date(2019, 1, 1), 90000, "Statement"), (today, 142000, "Statement"))
+        db.session.add_all([
+            BeneficiaryDesignation(holding_id=iras.id, person_id=john.id, percentage=100,
+                                   kind="account_tod", notes="Primary beneficiary on Fidelity form"),
+        ])
 
-        # History: Slow appreciation
-        db.session.add(Appraisal(asset_id=ring.id, date=date(2018, 5, 20), value=8000.0, source="Local Jeweler", notes="Insurance Appraisal"))
-        db.session.add(Appraisal(asset_id=ring.id, date=date(2020, 5, 20), value=8200.0, source="Insurance Adjustment"))
-        db.session.add(Appraisal(asset_id=ring.id, date=date(2022, 5, 20), value=8500.0, source="Insurance Adjustment"))
-        db.session.add(Appraisal(asset_id=ring.id, date=date.today(), value=8800.0, source="Est. Market Value"))
+        pension = holding(side="asset", type_code="income_stream", name="John's Pension",
+                          owner_id=john.id,
+                          attributes={"payer": "Metro Teachers' Retirement", "stream_type": "Pension",
+                                      "amount_per_period": cents(3200), "frequency": "Monthly"})
 
-        # ==========================================
-        # 6. JEWELRY (Rolex Watch)
-        # ==========================================
-        rolex = Asset(
-            name="Rolex Submariner",
-            asset_type="Jewelry",
-            is_in_trust=True,
-            value_estimated=9500.0,
-            owner=None,
-            attributes={
-                "location": "Safe Deposit Box",
-                "appraiser_info": "Timeless Appraisals, Inc.",
-                "appraisal_date": "2022-06-15"
-            }
-        )
-        db.session.add(rolex)
-        db.session.commit()
+        rolex = holding(side="asset", type_code="jewelry", name="Rolex Submariner",
+                        attributes={"location": "Safe deposit box",
+                                    "appraiser_info": "Timeless Appraisals, Inc.",
+                                    "appraisal_date": "2022-06-15"})
+        history(rolex,
+                (date(2015, 6, 15), 7500, "Purchase", "Bought new"),
+                (date(2022, 6, 15), 12000, "Timeless Appraisals, Inc.", "Peak market"),
+                (today, 9500, "Market correction"))
 
-        # History: Luxury watch boom
-        db.session.add(Appraisal(asset_id=rolex.id, date=date(2015, 6, 15), value=7500.0, source="Purchase", notes="Bought New"))
-        db.session.add(Appraisal(asset_id=rolex.id, date=date(2019, 6, 15), value=8200.0, source="Market Check"))
-        db.session.add(Appraisal(asset_id=rolex.id, date=date(2022, 6, 15), value=12000.0, source="Timeless Appraisals, Inc.", notes="Peak Market"))
-        db.session.add(Appraisal(asset_id=rolex.id, date=date(2023, 6, 15), value=10500.0, source="Chrono24"))
-        db.session.add(Appraisal(asset_id=rolex.id, date=date.today(), value=9500.0, source="Market Correction", notes="Stabilized Value"))
+        art = holding(side="asset", type_code="art", name="Oil Painting (Landscape)",
+                      attributes={"artist": "Local artist", "description": "Signed, 1998",
+                                  "location": "Living room"})
+        history(art,
+                (date(2010, 3, 10), 1200, "Purchase", "Art fair"),
+                (date(2020, 3, 10), 3500, "Insurance update"),
+                (today, 4500, "Gallery estimate"))
 
-        # ==========================================
-        # 7. ART (Oil Painting)
-        # ==========================================
-        art = Asset(
-            name="Oil Painting (Landscape)",
-            asset_type="Art",
-            is_in_trust=True,
-            value_estimated=4500.0,
-            owner=None,
-            attributes={
-                "description": "Signed by Local Artist",
-                "location": "Living Room"
-            }
-        )
-        db.session.add(art)
-        db.session.commit()
+        boat_slip = holding(side="asset", type_code="custom", name="Marina Slip B-14",
+                            attributes={"type_label": "Boat slip lease",
+                                        "fields": [{"name": "Marina", "value": "Harbor Point"},
+                                                   {"name": "Lease ends", "value": "2031-06-30"},
+                                                   {"name": "Transferable?", "value": "Yes, with marina approval"}]})
+        history(boat_slip, (today, 5000, "Marina transfer fee schedule"))
 
-        # History: Artist gaining recognition
-        db.session.add(Appraisal(asset_id=art.id, date=date(2010, 3, 10), value=1200.0, source="Purchase", notes="Art Fair"))
-        db.session.add(Appraisal(asset_id=art.id, date=date(2015, 3, 10), value=2500.0, source="Gallery Estimate"))
-        db.session.add(Appraisal(asset_id=art.id, date=date(2020, 3, 10), value=3500.0, source="Insurance Update"))
-        db.session.add(Appraisal(asset_id=art.id, date=date.today(), value=4500.0, source="Initial Entry"))
+        print("--- [EXAMPLE] Liabilities ---")
+        mortgage = holding(side="liability", type_code="mortgage", name="Home Mortgage",
+                           secured_by_id=house.id,
+                           attributes={"lender": "Wells Fargo", "account_number": "LN-55501",
+                                       "interest_rate": 3.5, "monthly_payment": cents(1706),
+                                       "payment_due_day": 1, "original_principal": cents(380000),
+                                       "maturity_date": "2040-01-01"})
+        history(mortgage,
+                (date(2010, 1, 1), 380000, "Loan origination", "Original principal"),
+                (date(2015, 1, 1), 340000, "Statement"),
+                (date(2020, 1, 1), 295000, "Refi statement"),
+                (today, 250000, "Statement", "Current payoff"))
 
-        # ==========================================
-        # 8. ART (Picasso)
-        # ==========================================
-        picasso = Asset(
-            name="Picasso Sketch",
-            asset_type="Art",
-            is_in_trust=True,
-            value_estimated=2500.0,
-            owner=None,
-            attributes={
-                "description": "Small napkin sketch, authenticated.",
-                "location": "Climate Controlled Storage",
-                "appraiser_info": "Gallery 54"
-            }
-        )
-        db.session.add(picasso)
-        db.session.commit()
+        loan = holding(side="liability", type_code="loan", name="Personal Consolidation Loan",
+                       entity_id=john_personal.id, owner_id=john.id,
+                       attributes={"lender": "QuickCash Corp", "interest_rate": 8.5,
+                                   "monthly_payment": cents(520)})
+        history(loan,
+                (date(2023, 1, 15), 25000, "Origination", "Debt consolidation"),
+                (date(2024, 1, 15), 15000, "Statement"),
+                (today, 13000, "Online portal", "Current payoff"))
 
-        # History: Long hold
-        db.session.add(Appraisal(asset_id=picasso.id, date=date(2005, 11, 10), value=800.0, source="Purchase", notes="Estate Sale Find"))
-        db.session.add(Appraisal(asset_id=picasso.id, date=date(2015, 11, 10), value=1500.0, source="Antiques Roadshow Est."))
-        db.session.add(Appraisal(asset_id=picasso.id, date=date(2023, 11, 10), value=2500.0, source="Gallery 54", notes="Formal Authentication"))
+        tax = holding(side="liability", type_code="tax_owed", name="2025 Federal Balance Due",
+                      attributes={"authority": "IRS", "tax_year": 2025,
+                                  "due_date": date(today.year + 1, 4, 15).isoformat()})
+        history(tax, (today, 2400, "CPA estimate"))
 
-        # ==========================================
-        # 9. LIABILITY (Mortgage)
-        # ==========================================
-        mortgage = Asset(
-            name="Home Mortgage",
-            asset_type="Liability",
-            is_in_trust=True,
-            value_estimated=-250000.0,
-            owner=None,
-            attributes={
-                "lender": "Wells Fargo",
-                "interest_rate": "3.5%",
-                "outstanding_balance": "250000"
-            }
-        )
-        db.session.add(mortgage)
-        db.session.commit()
-
-        # History: Paying down principal
-        db.session.add(Appraisal(asset_id=mortgage.id, date=date(2010, 1, 1), value=-380000.0, source="Loan Origination", notes="Original Principal"))
-        db.session.add(Appraisal(asset_id=mortgage.id, date=date(2015, 1, 1), value=-340000.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=mortgage.id, date=date(2020, 1, 1), value=-295000.0, source="Refi Statement"))
-        db.session.add(Appraisal(asset_id=mortgage.id, date=date(2023, 1, 1), value=-270000.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=mortgage.id, date=date.today(), value=-250000.0, source="Statement", notes="Current Payoff"))
-
-        # ==========================================
-        # 10. LIABILITY (Personal Loan)
-        # ==========================================
-        loan = Asset(
-            name="Personal Consolidation Loan",
-            asset_type="Liability",
-            is_in_trust=False,
-            value_estimated=-13000.0,
-            owner=p1,
-            attributes={
-                "lender": "QuickCash Corp",
-                "interest_rate": "8.5%",
-                "outstanding_balance": "13000"
-            }
-        )
-        db.session.add(loan)
-        db.session.commit()
-
-        # History: Rapid Paydown
-        db.session.add(Appraisal(asset_id=loan.id, date=date(2023, 1, 15), value=-25000.0, source="Origination", notes="Debt Consolidation"))
-        db.session.add(Appraisal(asset_id=loan.id, date=date(2023, 6, 15), value=-20000.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=loan.id, date=date(2024, 1, 15), value=-15000.0, source="Statement"))
-        db.session.add(Appraisal(asset_id=loan.id, date=date.today(), value=-13000.0, source="Online Portal", notes="Current Payoff"))
+        print("--- [EXAMPLE] Equity ---")
+        units = holding(side="equity", type_code="llc_units", name="Doe Rentals LLC - 50% interest",
+                        ownership_pct=50.0,
+                        attributes={"company": "Doe Rentals LLC", "units_held": 500,
+                                    "operating_agreement_location": "Fire safe, blue folder"})
+        history(units, (date(2018, 9, 1), 60000, "Capital contribution"),
+                (today, 140000, "CPA valuation, half of book value"))
+        db.session.add(BeneficiaryDesignation(holding_id=units.id, person_id=junior.id,
+                                              percentage=100, kind="trust_schedule"))
 
         db.session.commit()
-        print("✅ generalized 'seed_example.py' complete with RICH histories and Phase 5 features.")
+        n = db.session.query(Holding).count()
+        print(f"✅ seed_example.py complete: {n} holdings across assets, liabilities and equity.")
+
 
 if __name__ == "__main__":
     seed_generalized_data()
