@@ -336,7 +336,7 @@ EVENT_KIND_LABELS = {
     "review": "Review", "milestone": "Milestone", "memory": "Memory",
 }
 EVENT_KIND_ICONS = {
-    "task": "✅", "deadline": "⏰", "renewal": "🔁", "review": "🔍",
+    "task": "📌", "deadline": "⏰", "renewal": "🔁", "review": "🔍",
     "milestone": "🚩", "memory": "📷",
 }
 # now = keeping the binder true while everyone is here; planning = estate

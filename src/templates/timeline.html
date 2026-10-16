@@ -32,9 +32,11 @@
             </div>
             <div class="timeline-scroll-area">
                 {% for r in upcoming %}{{ row_card(r, today, here) }}{% endfor %}
+                {# This list is column-reverse (soonest sits by the header), so the
+                   subhead comes after its rows in the markup to show above them. #}
                 {% if undated %}
+                    {% for r in undated|reverse %}{{ row_card(r, today, here) }}{% endfor %}
                     <div class="tl-subhead">No date · needs attention</div>
-                    {% for r in undated %}{{ row_card(r, today, here) }}{% endfor %}
                 {% endif %}
                 {% if not upcoming and not undated %}
                     <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">Nothing open matches these filters.</p>

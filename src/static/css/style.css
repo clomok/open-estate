@@ -773,3 +773,17 @@ body {
     .now-head h1 { font-size: 1.6rem; }
     .saved-views-save { margin-left: 0; }
 }
+
+/* Timeline split view holding the new rows. Rows never shrink inside the
+   reversed Upcoming list (that squeezed them to one clipped line). */
+.timeline-scroll-area .ev-row { flex-shrink: 0; }
+.now-add { white-space: nowrap; }
+@media (max-width: 768px) {
+    /* On a phone the page scrolls, not two half-height panes: the filter bar
+       alone would leave the Upcoming pane a few rows tall. */
+    .timeline-wrapper { height: auto; overflow: visible; }
+    .timeline-split-view { overflow: visible; }
+    .timeline-split-view.dual-view #section-upcoming.expanded { max-height: none; }
+    .timeline-column.expanded { flex-basis: auto; }
+    .timeline-scroll-area { max-height: 70vh; padding: 0.6rem; }
+}
