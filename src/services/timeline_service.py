@@ -1,107 +1,64 @@
-from datetime import date, datetime
+"""The history half of the timeline: what already happened to the estate
+that is not an event - valuations, purchases, maintenance.
+
+Done events come from src/services/events.py; this adds the rest in the same
+Row shape, so the timeline page renders one list. Every row links back to
+the holding it is about.
+"""
+
+from datetime import date
+
 from flask import url_for
-from src.models import Event, RecurringBill, Holding, PropertyStructure
+
+from src.models import Holding, PropertyStructure
 from src.money import format_cents
+from src.services.estate import get_root_entity
+from src.services.events import Row
 
-def get_timeline_events(filter_types=None):
-    """
-    Aggregates all dated items into a standardized event list.
-    Event Structure: {
-        'date': date_obj,
-        'title': str,
-        'description': str,
-        'type': str (financial, asset, maintenance, milestone, task),
-        'type_label': str, # NEW: For UI Badge
-        'icon': str,
-        'link': str,
-        'is_past': bool
-    }
-    """
-    events = []
-    today = date.today()
-    
-    # 1. EVENTS (what used to be milestones and tasks)
-    if not filter_types or 'milestone' in filter_types or 'task' in filter_types:
-        for e in Event.query.filter(Event.date != None).all():
-            etype = 'milestone' if e.kind == 'milestone' else 'task'
-            if filter_types and etype not in filter_types:
+# (code, label) - the timeline's filter chips for things that are not events.
+HISTORY_KINDS = [("valuation", "Valuations"), ("acquisition", "Purchases"),
+                 ("maintenance", "Maintenance")]
+
+
+def history_rows(kinds=None, entity=None):
+    root_id = get_root_entity().id
+    want = set(kinds or [k for k, _ in HISTORY_KINDS])
+    out = []
+    for h in Holding.query.all():
+        eid = h.entity_id or root_id
+        if entity and eid != int(entity):
+            continue
+        link = url_for("main.holding_details", id=h.id)
+        purchase = (h.attributes or {}).get("purchase_date")
+        if "acquisition" in want and purchase:
+            try:
+                when = date.fromisoformat(purchase)
+            except ValueError:
+                when = None
+            if when:
+                out.append(Row(key=f"acquired:{h.id}", title=h.name, kind="acquisition",
+                               phase="now", date=when, done_at=when, link=link,
+                               description="Acquired for the estate.", entity_id=eid,
+                               holding_id=h.id, label="Purchased", glyph=h.icon))
+        if "valuation" in want:
+            for v in h.valuations:
+                if v.source == "Purchase":
+                    continue          # the acquisition row already says it
+                out.append(Row(key=f"valuation:{v.id}", title=h.name, kind="valuation",
+                               phase="now", date=v.date, done_at=v.date, link=link,
+                               description=f"Valued at {format_cents(v.value_cents)}"
+                                           + (f" ({v.source})" if v.source else ""),
+                               entity_id=eid, holding_id=h.id, label="Valuation",
+                               glyph=h.icon))
+    if "maintenance" in want:
+        for s in PropertyStructure.query.filter(PropertyStructure.date_last_maintained.isnot(None)):
+            eid = s.holding.entity_id or root_id
+            if entity and eid != int(entity):
                 continue
-            events.append({
-                'date': e.date,
-                'title': e.title,
-                'description': e.description,
-                'type': etype,
-                'type_label': e.kind_label,
-                'icon': e.icon,
-                'link': url_for('main.holding_details', id=e.holding_id) if e.holding_id else '#',
-                'is_past': e.date < today
-            })
-
-    # 2. RECURRING BILLS (Next Due Date)
-    if not filter_types or 'financial' in filter_types:
-        for b in RecurringBill.query.filter(RecurringBill.next_due_date != None).all():
-            events.append({
-                'date': b.next_due_date,
-                'title': b.name,
-                'description': f"Payee: {b.payee} (~{format_cents(b.amount_cents)})",
-                'type': 'financial',
-                'type_label': 'Bill Due',
-                'icon': '💳',
-                'link': url_for('main.holding_details', id=b.holding_id) + '#tab-bills',
-                'is_past': b.next_due_date < today
-            })
-
-    # 4. ASSET HISTORY (Purchases & Appraisals)
-    if not filter_types or 'history' in filter_types:
-        for a in Holding.query.all():
-            icon_char = a.icon
-
-            # A. Purchase Date (from attributes)
-            p_date_str = (a.attributes or {}).get('purchase_date')
-            if p_date_str:
-                try:
-                    p_date = datetime.strptime(p_date_str, '%Y-%m-%d').date()
-                    events.append({
-                        'date': p_date,
-                        'title': a.name,
-                        'description': f"Acquired for estate.",
-                        'type': 'asset',
-                        'type_label': 'Purchased',
-                        'icon': icon_char, # Updated to match asset
-                        'link': url_for('main.holding_details', id=a.id),
-                        'is_past': True
-                    })
-                except ValueError:
-                    pass
-            
-            # B. Appraisals (History)
-            for app in a.valuations:
-                events.append({
-                    'date': app.date,
-                    'title': a.name,
-                    'description': f"Valued at {format_cents(app.value_cents)} ({app.source})",
-                    'type': 'history',
-                    'type_label': 'Appraisal',
-                    'icon': icon_char, # Updated to match asset
-                    'link': url_for('main.holding_details', id=a.id),
-                    'is_past': True
-                })
-
-    # 5. MAINTENANCE (Structures)
-    if not filter_types or 'maintenance' in filter_types:
-        for s in PropertyStructure.query.filter(PropertyStructure.date_last_maintained != None).all():
-            events.append({
-                'date': s.date_last_maintained,
-                'title': s.name,
-                'description': s.notes or "Routine maintenance logged.",
-                'type': 'maintenance',
-                'type_label': 'Maintenance',
-                'icon': '🛠️',
-                'link': url_for('main.holding_details', id=s.holding_id) + '#tab-structures',
-                'is_past': True
-            })
-
-    # Sort all events by date
-    events.sort(key=lambda x: x['date'])
-    
-    return events
+            out.append(Row(key=f"maintained:{s.id}", title=s.name, kind="maintenance",
+                           phase="now", date=s.date_last_maintained,
+                           done_at=s.date_last_maintained,
+                           link=url_for("main.holding_details", id=s.holding_id) + "#structures",
+                           description=s.notes or "Maintenance logged.", entity_id=eid,
+                           holding_id=s.holding_id, label="Maintenance", glyph="🛠️"))
+    return out

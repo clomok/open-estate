@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% from '_form.html' import field %}
+
+{% block content %}
+<div class="oe-form-page">
+    <a class="oe-back" href="{{ url_for('main.playbook_view', id=playbook.id) }}">← {{ playbook.name }}</a>
+    <h1>{{ title }}</h1>
+    <form method="POST" class="summary-card">
+        {{ form.hidden_tag() }}
+        {{ field(form.title) }}
+        <div class="oe-pair">
+            {{ field(form.offset_days, inputmode="numeric") }}
+            {{ field(form.kind) }}
+        </div>
+        {{ field(form.who_role) }}
+        <div class="oe-help" style="margin-top: -0.5rem; margin-bottom: 1rem;">The run assigns it to the first contact with this role.</div>
+        {{ field(form.instructions) }}
+        {{ field(form.document_type, placeholder="e.g. Life insurance policies") }}
+        <div class="oe-actions">{{ form.submit(class_='btn-primary') }}</div>
+    </form>
+    {% if step %}
+    <form method="POST" action="{{ url_for('manage.delete_step', id=playbook.id, step_id=step.id) }}" class="oe-delete"
+          onsubmit="return confirm('Remove this step?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Remove step</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

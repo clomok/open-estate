@@ -50,6 +50,7 @@
         {% if side != 'liability' %}
         <button class="tab-btn" onclick="openTab(event, 'tab-beneficiaries')">Beneficiaries ({{ holding.beneficiary_designations|length }})</button>
         {% endif %}
+        <button class="tab-btn" onclick="openTab(event, 'tab-events')">Events ({{ holding.events|length }})</button>
         <button class="tab-btn" onclick="openTab(event, 'tab-bills')">Bills ({{ holding.bills|length }})</button>
         <button class="tab-btn" onclick="openTab(event, 'tab-team')">Team ({{ holding.vendors|length }})</button>
         <button class="tab-btn" onclick="openTab(event, 'tab-systems')">Pins ({{ holding.location_points|length }})</button>
@@ -265,6 +266,29 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <div id="tab-events" class="tab-content" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <h3>Events</h3>
+            <a href="{{ url_for('manage.create_event', holding_id=holding.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}" class="btn-primary">+ Add event</a>
+        </div>
+        {% for e in holding.events %}
+        <a class="ev-row ev-kind-{{ e.kind }}{% if e.is_done %} ev-done{% endif %}" style="text-decoration: none; color: inherit;"
+           href="{{ url_for('manage.edit_event', id=e.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}">
+            <div class="ev-icon">{{ e.icon }}</div>
+            <div class="ev-body">
+                <div class="ev-title">{{ e.title }}</div>
+                <div class="ev-meta">
+                    <span>{{ e.date or 'No date' }}</span><span class="ev-badge">{{ e.kind_label }}</span>
+                    {% if e.is_done %}<span>✓ done {{ e.done_at }}</span>{% endif %}
+                    {% if e.assignee %}<span class="ev-who">👤 {{ e.assignee.name }}</span>{% endif %}
+                </div>
+            </div>
+        </a>
+        {% else %}
+        <p style="color:#999; text-align:center;">No events for this holding. Bill due dates and checks appear on the Now page by themselves.</p>
+        {% endfor %}
     </div>
 
     <div id="tab-bills" class="tab-content" style="display:none;">

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="oe-form-page" style="max-width: 760px;">
+    <h1>Playbooks</h1>
+    <p class="oe-note">A playbook is a list of steps counted in days from a date. Running it puts one event per step on the timeline, assigned by role. The death-of-trustor playbook is offered when the trust's date of passing is filled in.</p>
+
+    {% for pb in playbooks %}
+    <a class="pb-card summary-card" href="{{ url_for('main.playbook_view', id=pb.id) }}">
+        <div class="pb-name">{{ pb.name }}</div>
+        <div class="pb-meta">
+            {{ pb.steps|length }} steps
+            {% if pb.trigger == 'death_of_trustor' %} · offered at a date of passing{% endif %}
+            {% if runs[pb.id] %} · run on {{ runs[pb.id]|map('first')|join(', ') }}{% endif %}
+        </div>
+    </a>
+    {% else %}
+    <p class="oe-note">No playbooks yet.</p>
+    {% endfor %}
+
+    <div class="oe-actions" style="justify-content: flex-start; gap: 1rem;">
+        <a class="btn-primary" href="{{ url_for('manage.manage_playbook') }}">+ New playbook</a>
+        <form method="POST" action="{{ url_for('manage.install_default_playbook') }}" style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="ev-btn" type="submit">Add a fresh copy of the default</button>
+        </form>
+    </div>
+    <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
+</div>
+{% endblock %}

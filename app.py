@@ -40,6 +40,29 @@ def create_app(config_class=Config):
             return cents
 
     app.jinja_env.filters['money_input'] = cents_to_input
+
+    from datetime import timedelta
+
+    @app.template_filter('relday')
+    def relday_filter(d, today):
+        """A date as a person says it on the Now page: Today, Tomorrow,
+        in 5 days, 3 days overdue, then the date itself further out."""
+        if d is None:
+            return ''
+        n = (d - today).days
+        if n == 0:
+            return 'Today'
+        if n == 1:
+            return 'Tomorrow'
+        if n == -1:
+            return 'Yesterday'
+        if 1 < n <= 14:
+            return f'in {n} days'
+        if -14 <= n < -1:
+            return f'{-n} days ago'
+        return d.strftime('%b %d, %Y') if d.year != today.year else d.strftime('%b %d')
+
+    app.jinja_env.globals['timedelta'] = timedelta
     # Small POST forms (verify, remove) that are not FlaskForms still carry a token.
     from flask_wtf.csrf import generate_csrf
     app.jinja_env.globals['csrf_token'] = generate_csrf

@@ -77,9 +77,17 @@
     </div>
     
     <div class="summary-card">
-        <div class="summary-label">Next Milestone</div>
-        <h3>Annual Review</h3>
-        <p style="color: #666; font-size: 0.9rem;">No immediate actions pending.</p>
+        <div class="summary-label">Next up</div>
+        {% if next_event %}
+        <h3><a href="{{ next_event.edit_link or next_event.link }}" style="color: inherit; text-decoration: none;">{{ next_event.icon }} {{ next_event.title }}</a></h3>
+        <p style="color: {% if next_event.date < today %}#b91c1c{% else %}#666{% endif %}; font-size: 0.9rem;">
+            {{ next_event.kind_label }} · {{ next_event.date | relday(today) }}{% if next_event.date < today %} (overdue){% endif %}
+            {% if next_event.assignee_name %} · {{ next_event.assignee_name }}{% endif %}
+        </p>
+        {% else %}
+        <h3>Nothing scheduled</h3>
+        {% endif %}
+        <a href="{{ url_for('main.now') }}" style="font-size: 0.9rem;">Everything due now →</a>
     </div>
 </div>
 

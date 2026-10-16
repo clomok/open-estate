@@ -24,6 +24,12 @@
         {% endif %}
 
         <nav>
+            <a href="{{ url_for('main.now') }}" class="nav-item {% if active_page == 'now' %}active{% endif %}">
+                Now
+            </a>
+            <a href="{{ url_for('main.timeline_view') }}" class="nav-item {% if active_page == 'timeline' %}active{% endif %}">
+                Timeline
+            </a>
             <a href="{{ url_for('main.dashboard') }}" class="nav-item {% if active_page == 'overview' %}active{% endif %}">
                 Overview
             </a>
@@ -33,11 +39,11 @@
             <a href="{{ url_for('main.holdings_view') }}" class="nav-item {% if active_page == 'assets' %}active{% endif %}">
                 Holdings
             </a>
-            <a href="{{ url_for('main.timeline_view') }}" class="nav-item {% if active_page == 'timeline' %}active{% endif %}">
-                Timeline
-            </a>
             <a href="{{ url_for('main.contacts_view') }}" class="nav-item {% if active_page == 'contacts' %}active{% endif %}">
                 Contacts
+            </a>
+            <a href="{{ url_for('main.playbooks_view') }}" class="nav-item {% if active_page == 'playbooks' %}active{% endif %}">
+                Playbooks
             </a>
             <a href="{{ url_for('main.faq_view') }}" class="nav-item {% if active_page == 'faq' %}active{% endif %}">
                 FAQ

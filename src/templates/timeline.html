@@ -1,107 +1,59 @@
 {% extends 'base.html' %}
 
+{% from '_rows.html' import row_card, filter_bar %}
 {% block content %}
+{% set here = request.full_path.rstrip('?') %}
 <div class="timeline-wrapper">
 
     <div style="flex-shrink: 0; margin-bottom: 1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <h1 style="margin: 0;">Unified Timeline</h1>
+        <div class="now-head">
+            <h1 style="margin: 0;">Timeline</h1>
+            <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
         </div>
 
-        <div style="margin-bottom: 1rem; background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; gap: 1rem; align-items: center;">
-                <span style="font-size: 0.85rem; color: #666; text-transform: uppercase;">Saved Views:</span>
-                <div id="savedViewsList" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
-            </div>
-            <button onclick="saveCurrentView()" style="background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.85rem;">
-                + Save Current
-            </button>
+        <div class="saved-views">
+            <span class="saved-views-label">Saved views:</span>
+            <div id="savedViewsList" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+            <button onclick="saveCurrentView()" class="saved-views-save">+ Save current</button>
         </div>
 
-        <div class="filter-bar">
-            <form id="filterForm" method="GET" action="{{ url_for('main.timeline_view') }}">
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                    <span style="font-size: 0.9rem; font-weight: bold; color: #666; margin-right: 0.5rem;">Show:</span>
-                    
-                    {% set filters = [
-                        ('milestone', 'Milestones'),
-                        ('financial', 'Financial'),
-                        ('task', 'Tasks'),
-                        ('asset', 'Purchases'),
-                        ('maintenance', 'Maintenance'),
-                        ('history', 'Appraisals')
-                    ] %}
-
-                    {% for code, label in filters %}
-                    <label class="filter-chip {% if not current_filters or code in current_filters %}active{% endif %}">
-                        <input type="checkbox" name="type" value="{{ code }}" 
-                               {% if not current_filters or code in current_filters %}checked{% endif %}
-                               onchange="document.getElementById('filterForm').submit()">
-                        {{ label }}
-                    </label>
-                    {% endfor %}
-                </div>
-            </form>
-        </div>
+        {{ filter_bar(url_for('main.timeline_view'), filters, options, options.kinds, history_kinds) }}
     </div>
 
     <div class="timeline-split-view">
-        
+
         <div id="section-upcoming" class="timeline-column expanded reverse-layout">
-            
             <div class="timeline-header header-green" onclick="toggleSection('upcoming')">
                 <h2 style="margin: 0; display: flex; align-items: center; color: white;">
-                    Upcoming & Active
+                    Upcoming &amp; Active
                     <span class="toggle-icon" id="icon-upcoming" style="color: rgba(255,255,255,0.8); margin-left: 0.5rem;">▲</span>
                 </h2>
-                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ upcoming|length }} Events</span>
+                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ upcoming|length + undated|length }} open</span>
             </div>
-            
             <div class="timeline-scroll-area">
-                {% if upcoming %}
-                    {% for event in upcoming %}
-                        <a href="{{ event.link }}" class="timeline-card type-{{ event.type }}">
-                            <div class="timeline-icon">{{ event.icon }}</div>
-                            <div class="timeline-content">
-                                <div class="timeline-date">{{ event.date.strftime('%b %d, %Y') }}</div>
-                                <div class="timeline-title">{{ event.title }}</div>
-                                <div class="timeline-desc">{{ event.description }}</div>
-                                <div class="timeline-badge badge-{{ event.type }}">{{ event.type_label }}</div>
-                            </div>
-                        </a>
-                    {% endfor %}
-                {% else %}
-                    <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">No upcoming events matching filters.</p>
+                {% for r in upcoming %}{{ row_card(r, today, here) }}{% endfor %}
+                {% if undated %}
+                    <div class="tl-subhead">No date · needs attention</div>
+                    {% for r in undated %}{{ row_card(r, today, here) }}{% endfor %}
+                {% endif %}
+                {% if not upcoming and not undated %}
+                    <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">Nothing open matches these filters.</p>
                 {% endif %}
             </div>
         </div>
 
         <div id="section-history" class="timeline-column expanded">
-            
             <div class="timeline-header header-gray" onclick="toggleSection('history')">
                 <h2 style="margin: 0; display: flex; align-items: center; color: white;">
-                    History & Logs
+                    History &amp; Logs
                     <span class="toggle-icon" id="icon-history" style="color: rgba(255,255,255,0.8); margin-left: 0.5rem;">▼</span>
                 </h2>
-                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ history|length }} Events</span>
+                <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9);">{{ history|length }} entries</span>
             </div>
-
             <div class="timeline-scroll-area">
-                {% if history %}
-                    {% for event in history %}
-                        <a href="{{ event.link }}" class="timeline-card type-{{ event.type }} past">
-                            <div class="timeline-icon">{{ event.icon }}</div>
-                            <div class="timeline-content">
-                                <div class="timeline-date">{{ event.date.strftime('%b %d, %Y') }}</div>
-                                <div class="timeline-title">{{ event.title }}</div>
-                                <div class="timeline-desc">{{ event.description }}</div>
-                                <div class="timeline-badge badge-{{ event.type }}">{{ event.type_label }}</div>
-                            </div>
-                        </a>
-                    {% endfor %}
-                {% else %}
+                {% for r in history %}{{ row_card(r, today, here, actions=r.kind not in ('valuation', 'acquisition', 'maintenance')) }}{% else %}
                     <p style="color: #999; font-style: italic; padding: 1rem; text-align: center;">No history found.</p>
-                {% endif %}
+                {% endfor %}
             </div>
         </div>
     </div>

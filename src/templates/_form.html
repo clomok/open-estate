@@ -1,0 +1,13 @@
+{# Form fields for the timeline and playbook forms: label, input, help, errors. #}
+{% macro field(f) %}
+<div class="oe-field">
+    {% if f.type == 'BooleanField' %}
+        <label class="oe-check">{{ f(**kwargs) }} {{ f.label.text }}</label>
+    {% else %}
+        <label for="{{ f.id }}">{{ f.label.text }}</label>
+        {{ f(class_='oe-input', **kwargs) }}
+    {% endif %}
+    {% if f.description %}<div class="oe-help">{{ f.description }}</div>{% endif %}
+    {% for e in f.errors %}<div class="oe-error">{{ e }}</div>{% endfor %}
+</div>
+{% endmacro %}

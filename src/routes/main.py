@@ -1,9 +1,13 @@
 from datetime import date
 from flask import Blueprint, render_template, request, redirect, url_for
 from src.services.auth_service import login_required
-from src.services.timeline_service import get_timeline_events
+from src.services.timeline_service import history_rows, HISTORY_KINDS
+from src.services import events as event_service, playbooks as playbook_service
+from src.services.default_playbook import DISCLAIMER
 from src.services.estate import get_root_entity, addon_entities
-from src.models import Person, Holding, FAMILY_ROLES, DESIGNATION_KIND_LABELS
+from src.models import (Person, Holding, Playbook, FAMILY_ROLES, DESIGNATION_KIND_LABELS,
+                        EVENT_KINDS, EVENT_KIND_LABELS, EVENT_PHASES, EVENT_PHASE_LABELS,
+                        PERSON_ROLES)
 from src.forms import ValuationForm, DesignationForm
 from src.holding_types import SIDES, SIDE_META
 from src.money import cents_to_dollars
@@ -17,7 +21,45 @@ def ledger_totals(holdings):
     return totals
 
 
+def _filters():
+    """The filter bar shared by the Now and Timeline pages, read from the URL."""
+    return {
+        "kinds": request.args.getlist("kind"),
+        "phases": request.args.getlist("phase"),
+        "assignee": request.args.get("assignee", ""),
+        "entity": request.args.get("entity", type=int),
+    }
+
+
+def _filter_options():
+    root = get_root_entity()
+    return {
+        "people": Person.query.order_by(Person.name).all(),
+        "entities": [root] + addon_entities(),
+        "phases": [(p, EVENT_PHASE_LABELS[p]) for p in EVENT_PHASES],
+        "kinds": [(k, EVENT_KIND_LABELS[k]) for k in EVENT_KINDS],
+    }
+
+
 @bp.route('/')
+@login_required
+def now():
+    """Home: what needs doing now."""
+    today = date.today()
+    f = _filters()
+    rows = event_service.apply_filters(event_service.all_rows(today), f["kinds"],
+                                       f["phases"], f["assignee"], f["entity"])
+    sections = event_service.now_sections(rows, today)
+    root = get_root_entity()
+    pb = playbook_service.death_playbook()
+    return render_template('now.html', sections=sections, today=today, filters=f,
+                           options=_filter_options(), root=root,
+                           death_playbook=pb,
+                           death_playbook_runs=playbook_service.runs(pb) if pb else [],
+                           active_page='now')
+
+
+@bp.route('/overview')
 @login_required
 def dashboard():
     root = get_root_entity()
@@ -65,6 +107,8 @@ def dashboard():
                            root=root,
                            totals=totals,
                            trust_count=trust_count,
+                           next_event=event_service.next_up(),
+                           today=date.today(),
                            chart_payload=chart_payload)
 
 
@@ -130,25 +174,58 @@ def holding_details(id):
 @bp.route('/timeline')
 @login_required
 def timeline_view():
-    # Get filters from URL
-    active_filters = request.args.getlist('type')
-    if not active_filters:
-        active_filters = None
-
-    all_events = get_timeline_events(active_filters)
+    """Upcoming (every open event and derived item, overdue first) beside
+    history (done events, valuations, acquisitions, maintenance)."""
     today = date.today()
+    f = _filters()
+    event_kinds = [k for k in f["kinds"] if k in EVENT_KINDS]
+    history_kinds = [k for k in f["kinds"] if k in dict(HISTORY_KINDS)]
 
-    # History = everything up to today; upcoming = everything after.
-    history = [e for e in all_events if e['date'] <= today]
-    upcoming = [e for e in all_events if e['date'] > today]
-    history.sort(key=lambda x: x['date'], reverse=True)
-    upcoming.sort(key=lambda x: x['date'])
+    rows = event_service.all_rows(today)
+    upcoming, history = [], []
+    if not f["kinds"] or event_kinds:
+        rows = event_service.apply_filters(rows, event_kinds, f["phases"],
+                                           f["assignee"], f["entity"])
+        upcoming = [r for r in rows if not r.is_done and r.date]
+        undated = [r for r in rows if not r.is_done and not r.date]
+        history = [r for r in rows if r.is_done]
+    else:
+        undated = []
+    # Valuations, purchases and maintenance have no phase or assignee: they
+    # drop out when either of those filters is set.
+    if (not f["kinds"] or history_kinds) and not f["phases"] and not f["assignee"]:
+        history += history_rows(history_kinds or None, f["entity"])
+
+    upcoming.sort(key=lambda r: (r.date, r.title.lower()))
+    history.sort(key=lambda r: (r.done_at or r.date), reverse=True)
 
     return render_template('timeline.html',
                            history=history,
                            upcoming=upcoming,
-                           active_page='timeline',
-                           current_filters=active_filters or [])
+                           undated=undated,
+                           today=today,
+                           filters=f,
+                           options=_filter_options(),
+                           history_kinds=HISTORY_KINDS,
+                           active_page='timeline')
+
+
+@bp.route('/playbooks')
+@login_required
+def playbooks_view():
+    pbs = Playbook.query.order_by(Playbook.name).all()
+    return render_template('playbooks.html', playbooks=pbs,
+                           runs={pb.id: playbook_service.runs(pb) for pb in pbs},
+                           disclaimer=DISCLAIMER, active_page='playbooks')
+
+
+@bp.route('/playbook/<int:id>')
+@login_required
+def playbook_view(id):
+    pb = Playbook.query.get_or_404(id)
+    return render_template('playbook.html', playbook=pb, runs=playbook_service.runs(pb),
+                           role_labels=dict(PERSON_ROLES), disclaimer=DISCLAIMER,
+                           active_page='playbooks')
 
 
 @bp.route('/contacts')

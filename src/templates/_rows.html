@@ -1,0 +1,82 @@
+{# One timeline row with its one-tap actions. Used by the Now and Timeline pages.
+   `next` is where the buttons come back to (the current URL with its filters). #}
+{% macro row_card(r, today, next, actions=True, show_phase=True) %}
+<div class="ev-row ev-kind-{{ r.kind }}{% if r.is_done %} ev-done{% endif %}{% if r.date and r.date < today and not r.is_done %} ev-overdue{% endif %}">
+    <div class="ev-icon" aria-hidden="true">{{ r.icon }}</div>
+    <div class="ev-body">
+        <a class="ev-title" href="{{ r.edit_link or r.link }}">{{ r.title }}</a>
+        <div class="ev-meta">
+            {% if r.is_done %}
+                <span>Done {{ r.done_at | relday(today) }}</span>
+            {% elif r.date %}
+                <span class="ev-when">{{ r.date | relday(today) }}</span>
+            {% endif %}
+            <span class="ev-badge">{{ r.kind_label }}</span>
+            {% if show_phase and r.phase != 'now' and r.kind not in ('valuation', 'acquisition', 'maintenance') %}<span class="ev-phase">{{ r.phase_label }}</span>{% endif %}
+            {% if r.assignee_name %}<span class="ev-who">👤 {{ r.assignee_name }}</span>{% endif %}
+            {% if r.repeats %}<span title="Repeats">🔁</span>{% endif %}
+            {% if r.derived %}<span class="ev-auto" title="Worked out from your records; tapping a button saves it as an event">auto</span>{% endif %}
+        </div>
+        {% if r.description %}<div class="ev-desc">{{ r.description }}</div>{% endif %}
+    </div>
+    {% if actions %}
+    <div class="ev-actions">
+        {% if r.kind not in ('valuation', 'acquisition', 'maintenance') %}
+        <form method="POST" action="{{ url_for('manage.timeline_action') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="key" value="{{ r.key }}">
+            <input type="hidden" name="next" value="{{ next }}">
+            {% if r.is_done %}
+                <button name="action" value="reopen" class="ev-btn" title="Not done after all">↺</button>
+            {% else %}
+                <button name="action" value="done" class="ev-btn ev-btn-done" title="Mark done">✓</button>
+                <button name="action" value="snooze" class="ev-btn" title="Snooze a week">+1 wk</button>
+                {% if r.derived %}<button name="action" value="note" class="ev-btn" title="Add a note or assign it">✎</button>{% endif %}
+            {% endif %}
+        </form>
+        {% endif %}
+        {% if r.link and r.link != '#' and r.link != r.edit_link %}<a class="ev-btn ev-open" href="{{ r.link }}" title="Open the record">Open</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# The filter bar: assignee, phase, entity (and kind on the timeline). Each
+   select submits on change; the form keeps the other filters. #}
+{% macro filter_bar(action, filters, options, kinds=None, history_kinds=None) %}
+<form class="ev-filters" method="GET" action="{{ action }}">
+    <select name="assignee" onchange="this.form.submit()" aria-label="Who">
+        <option value="">Anyone</option>
+        <option value="none" {% if filters.assignee == 'none' %}selected{% endif %}>Nobody yet</option>
+        {% for p in options.people %}
+        <option value="{{ p.id }}" {% if filters.assignee == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+    </select>
+    <select name="phase" onchange="this.form.submit()" aria-label="Phase">
+        <option value="">Every phase</option>
+        {% for code, label in options.phases %}
+        <option value="{{ code }}" {% if code in filters.phases %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="entity" onchange="this.form.submit()" aria-label="Entity">
+        <option value="">Whole estate</option>
+        {% for e in options.entities %}
+        <option value="{{ e.id }}" {% if filters.entity == e.id %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+    </select>
+    {% if kinds %}
+    <div class="ev-chips">
+        {% for code, label in kinds + (history_kinds or []) %}
+        <label class="filter-chip {% if not filters.kinds or code in filters.kinds %}active{% endif %}">
+            <input type="checkbox" name="kind" value="{{ code }}"
+                   {% if code in filters.kinds %}checked{% endif %}
+                   onchange="this.form.submit()">{{ label }}
+        </label>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if filters.assignee or filters.phases or filters.entity or filters.kinds %}
+    <a class="ev-clear" href="{{ action }}">Clear</a>
+    {% endif %}
+</form>
+{% endmacro %}

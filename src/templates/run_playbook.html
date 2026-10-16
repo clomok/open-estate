@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% from '_form.html' import field %}
+
+{% block content %}
+<div class="oe-form-page" style="max-width: 760px;">
+    <a class="oe-back" href="{{ url_for('main.playbook_view', id=playbook.id) }}">← {{ playbook.name }}</a>
+    <h1>Run “{{ playbook.name }}”</h1>
+    {% if offered %}
+    <div class="now-banner">The trust now has a date of passing. This playbook can put the successor trustee's first year on the timeline, counted from that date. Check the date, then create the events — or come back to it later from Playbooks.</div>
+    {% endif %}
+    <p class="oe-note">Makes {{ playbook.steps|length }} events, one per step, in the <strong>Transition</strong> phase, each assigned to the first contact holding the step's role. Running it again on the same date adds nothing twice.</p>
+    {% if already %}<p class="oe-note">Already run on {{ already|join(', ') }}.</p>{% endif %}
+
+    <form method="POST" class="summary-card">
+        {{ form.hidden_tag() }}
+        {{ field(form.trigger_date) }}
+        <div class="oe-actions">
+            <a href="{{ url_for('main.now') }}">Not now</a>
+            {{ form.submit(class_='btn-primary') }}
+        </div>
+    </form>
+
+    <h2 class="pb-group">What it will add</h2>
+    {% for s in playbook.steps %}
+    <div class="pb-step">
+        <div class="pb-day">{% if preview_date %}{{ (preview_date + timedelta(days=s.offset_days)).strftime('%b %d') }}{% else %}Day {{ s.offset_days }}{% endif %}</div>
+        <div class="pb-body"><div class="pb-title">{{ s.title }}</div></div>
+    </div>
+    {% endfor %}
+    <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
+</div>
+{% endblock %}

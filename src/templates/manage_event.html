@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% from '_form.html' import field %}
+
+{% block content %}
+{% set nxt = request.values.get('next', '') %}
+{% set back = nxt if nxt.startswith('/') and not nxt.startswith('//') else url_for('main.now') %}
+<div class="oe-form-page">
+    <a class="oe-back" href="{{ back }}">← Back</a>
+    <h1>{{ title }}</h1>
+    {% if event and event.source %}
+    <p class="oe-note">
+        {% if event.source.startswith('playbook:') %}Made by a playbook run.{% else %}Worked out from your records, then saved when it was touched. Marking it done moves the record on (a bill's next due date, a verified date).{% endif %}
+    </p>
+    {% endif %}
+
+    <form method="POST" class="summary-card">
+        {{ form.hidden_tag() }}
+        <input type="hidden" name="next" value="{{ back }}">
+        {{ field(form.title, placeholder="e.g. Renew the homeowner's policy") }}
+        <div class="oe-pair">
+            {{ field(form.date) }}
+            {{ field(form.kind) }}
+        </div>
+        <div class="oe-pair">
+            {{ field(form.assignee_id) }}
+            {{ field(form.phase) }}
+        </div>
+        {{ field(form.description) }}
+
+        <details class="oe-more" {% if event and (event.holding_id or event.entity_id or event.person_id or event.repeats) or form.holding_id.data or form.person_id.data or form.entity_id.data %}open{% endif %}>
+            <summary>Linked record and repeat</summary>
+            {{ field(form.holding_id) }}
+            {{ field(form.person_id) }}
+            {{ field(form.entity_id) }}
+            <div class="oe-pair">
+                {{ field(form.repeat_every, placeholder="1") }}
+                {{ field(form.repeat_unit) }}
+            </div>
+            <div class="oe-help">A repeating event makes its next one, counted from its own date, when it is marked done.</div>
+        </details>
+
+        {{ field(form.done) }}
+        <div class="oe-actions">
+            <a href="{{ back }}">Cancel</a>
+            {{ form.submit(class_='btn-primary') }}
+        </div>
+    </form>
+
+    {% if event %}
+    <form method="POST" action="{{ url_for('manage.delete_event', id=event.id) }}" class="oe-delete"
+          onsubmit="return confirm('Delete this event?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ back }}">
+        <button type="submit">Delete event</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="oe-form-page" style="max-width: 760px;">
+    <a class="oe-back" href="{{ url_for('main.playbooks_view') }}">← Playbooks</a>
+    <div class="now-head">
+        <h1>{{ playbook.name }}</h1>
+        <a class="btn-primary" href="{{ url_for('manage.run_playbook', id=playbook.id) }}">Run…</a>
+    </div>
+    {% if playbook.description %}<p class="oe-note">{{ playbook.description }}</p>{% endif %}
+    <p class="oe-disclaimer">⚠️ {{ disclaimer }}</p>
+    {% if runs %}
+    <p class="oe-note">Already run on: {% for d, n in runs %}<a href="{{ url_for('main.timeline_view', phase='transition') }}">{{ d }}</a> ({{ n }} events){% if not loop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+
+    {% set ns = namespace(group=None) %}
+    {% for s in playbook.steps %}
+        {% set group = 'First 72 hours' if s.offset_days <= 3 else ('First 30 days' if s.offset_days <= 30 else ('By 90 days' if s.offset_days <= 90 else 'Year one and after')) %}
+        {% if group != ns.group %}{% set ns.group = group %}<h2 class="pb-group">{{ group }}</h2>{% endif %}
+        <div class="pb-step" id="step-{{ s.id }}">
+            <div class="pb-day">Day {{ s.offset_days }}</div>
+            <div class="pb-body">
+                <div class="pb-title">{{ s.title }}</div>
+                <div class="ev-meta">
+                    {% if s.who_role %}<span class="ev-who">👤 {{ role_labels.get(s.who_role, s.who_role) }}</span>{% endif %}
+                    {% if s.kind != 'task' %}<span class="ev-badge">{{ s.kind|capitalize }}</span>{% endif %}
+                    {% if s.document_type %}<span>📄 {{ s.document_type }}</span>{% endif %}
+                </div>
+                {% if s.instructions %}<div class="ev-desc pb-text">{{ s.instructions }}</div>{% endif %}
+            </div>
+            <a class="ev-btn" href="{{ url_for('manage.manage_step', id=playbook.id, step_id=s.id) }}" title="Edit step">✎</a>
+        </div>
+    {% endfor %}
+
+    <div class="oe-actions" style="justify-content: flex-start; gap: 1rem; flex-wrap: wrap;">
+        <a class="btn-primary" href="{{ url_for('manage.manage_step', id=playbook.id) }}">+ Add a step</a>
+        <a class="ev-btn" href="{{ url_for('manage.manage_playbook', id=playbook.id) }}">Rename / describe</a>
+        <form method="POST" action="{{ url_for('manage.delete_playbook', id=playbook.id) }}" style="margin: 0;"
+              onsubmit="return confirm('Delete this playbook? Events it already created stay on the timeline.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="ev-btn" style="color: #b91c1c;" type="submit">Delete playbook</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

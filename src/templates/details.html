@@ -98,6 +98,7 @@
                 Date of Passing recorded: <strong>{{ profile.date_death_actual }}</strong>.
                 <br>The estate is now in administration/transition mode.
             </p>
+            <a href="{{ url_for('main.now', phase='transition') }}" style="color: #991b1b; font-weight: bold;">Transition tasks on the Now page →</a>
         </div>
         {% endif %}
 

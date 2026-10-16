@@ -31,7 +31,15 @@ def ok(response):
 
 
 def test_every_page_renders(client, estate):
-    pages = ["/", "/holdings", "/timeline", "/contacts", "/details", "/faq", "/settings/",
+    pages = ["/", "/overview", "/holdings", "/timeline", "/contacts", "/details", "/faq", "/settings/",
+             "/playbooks", "/playbook/1", "/manage/event/new", "/manage/event/30/edit",
+             "/manage/event/new?holding_id=10&kind=deadline&date=2026-12-01",
+             "/manage/playbook/new", "/manage/playbook/1/edit", "/manage/playbook/1/run",
+             "/manage/playbook/1/run?date=2026-03-01", "/manage/playbook/1/step/new",
+             "/manage/playbook/1/step/1/edit",
+             "/?assignee=1&phase=now&entity=1", "/?assignee=none",
+             "/timeline?kind=task&kind=valuation&phase=now", "/timeline?kind=valuation",
+             "/timeline?assignee=1&entity=2",
              "/manage/holding/select-type", "/manage/contact/new", "/manage/contact/edit/1",
              "/manage/trust/edit", "/manage/entity/new", "/manage/entity/2/edit"]
     pages += [f"/holding/{i}" for i in (10, 11, 12, 13, 14)]
@@ -59,7 +67,7 @@ def test_sub_items_are_offered_on_every_side(client, estate):
 
 
 def test_dashboard_net_worth_is_assets_minus_liabilities(client, estate):
-    page = ok(client.get("/"))
+    page = ok(client.get("/overview"))
     # assets 750,000 + 42,000 + 5,000; liability 250,000; equity 120,000 shown apart
     assert "$547,000" in page
     assert "$120,000" in page

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% from '_form.html' import field %}
+
+{% block content %}
+<div class="oe-form-page">
+    <a class="oe-back" href="{{ url_for('main.playbook_view', id=playbook.id) if playbook else url_for('main.playbooks_view') }}">← Back</a>
+    <h1>{{ title }}</h1>
+    <form method="POST" class="summary-card">
+        {{ form.hidden_tag() }}
+        {{ field(form.name) }}
+        {{ field(form.description) }}
+        {{ field(form.trigger) }}
+        <div class="oe-actions">{{ form.submit(class_='btn-primary') }}</div>
+    </form>
+</div>
+{% endblock %}

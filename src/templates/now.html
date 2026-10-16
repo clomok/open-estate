@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% from '_rows.html' import row_card, filter_bar %}
+
+{% block content %}
+{% set here = request.full_path.rstrip('?') %}
+<div class="now-page">
+    <div class="now-head">
+        <div>
+            <h1>Now</h1>
+            <div class="now-sub">{{ today.strftime('%A, %B') }} {{ today.day }} · {{ root.name }}</div>
+        </div>
+        <a class="btn-primary now-add" href="{{ url_for('manage.create_event', next=here) }}">+ Add</a>
+    </div>
+
+    {% if root.date_death_actual and death_playbook and not death_playbook_runs %}
+    <div class="now-banner">
+        <strong>{{ root.name }} has a date of passing ({{ root.date_death_actual }}).</strong>
+        The transition playbook has not been run yet.
+        <a href="{{ url_for('manage.run_playbook', id=death_playbook.id, date=root.date_death_actual.isoformat()) }}">Review and run it →</a>
+    </div>
+    {% endif %}
+
+    {{ filter_bar(url_for('main.now'), filters, options) }}
+
+    {% set blocks = [
+        ('overdue', 'Overdue', 'Past their date and not done.'),
+        ('week', 'This week', 'Today and the next 7 days.'),
+        ('month', 'Next 30 days', ''),
+        ('attention', 'Needs attention', 'Gaps in the binder, and tasks with no date.'),
+    ] %}
+    {% set ns = namespace(any=false) %}
+    {% for key, label, hint in blocks %}
+    {% set items = sections[key] %}
+    {% if items %}{% set ns.any = true %}
+    <section class="now-section now-{{ key }}">
+        <h2>{{ label }} <span class="now-count">{{ items|length }}</span></h2>
+        {% if hint %}<div class="now-hint">{{ hint }}</div>{% endif %}
+        {% for r in items %}{{ row_card(r, today, here) }}{% endfor %}
+    </section>
+    {% endif %}
+    {% endfor %}
+
+    {% if not ns.any %}
+    <div class="now-empty">
+        <div style="font-size: 2rem;">🌤️</div>
+        Nothing due in the next 30 days{% if filters.assignee or filters.phases or filters.entity %} for this filter{% endif %}.
+    </div>
+    {% endif %}
+
+    {% if sections.recent %}
+    <section class="now-section now-recent">
+        <h2>Recently done</h2>
+        {% for r in sections.recent %}{{ row_card(r, today, here) }}{% endfor %}
+    </section>
+    {% endif %}
+
+    <div class="now-foot">
+        <a href="{{ url_for('main.timeline_view') }}">Full timeline →</a>
+        <a href="{{ url_for('main.playbooks_view') }}">Playbooks →</a>
+        <a href="{{ url_for('main.dashboard') }}">Net worth overview →</a>
+    </div>
+</div>
+{% endblock %}
