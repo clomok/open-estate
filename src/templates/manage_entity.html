@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set input_style = "width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h1 style="margin-bottom: 0.5rem;">{{ title }}</h1>
+    <p style="color: #666; margin-top: 0; margin-bottom: 2rem;">Attached to <strong>{{ root.name }}</strong>. Holdings you assign to it are reported separately from the trust's own.</p>
+
+    <div class="summary-card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.kind.label }}</label>
+                {{ form.kind(style=input_style, onchange="togglePerson()") }}
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.name.label }}</label>
+                {{ form.name(style=input_style, placeholder="e.g. Example Holdings LLC") }}
+            </div>
+            <div id="personRow" style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.person_id.label }}</label>
+                {{ form.person_id(style=input_style) }}
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.date_established.label }}</label>
+                {{ form.date_established(style=input_style) }}
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.notes.label }}</label>
+                {{ form.notes(style=input_style, rows=3, placeholder="EIN, registered agent, account custodian...") }}
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                <a href="{{ url_for('main.details_view') }}" style="color: #666; text-decoration: none;">Cancel</a>
+                {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    function togglePerson() {
+        document.getElementById('personRow').style.display =
+            document.getElementById('kind').value === 'individual' ? 'block' : 'none';
+    }
+    togglePerson();
+</script>
+{% endblock %}

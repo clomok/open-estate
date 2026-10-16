@@ -1,146 +1,131 @@
-import json
-from datetime import date, datetime
+from datetime import date
 from flask import Blueprint, render_template, request, redirect, url_for
 from src.services.auth_service import login_required
 from src.services.timeline_service import get_timeline_events
-from src.models import Person, Asset, Milestone, Task, Appraisal, TrustProfile
-from src.forms import AppraisalForm
-from src.extensions import db
+from src.services.estate import get_root_entity, addon_entities
+from src.models import Person, Holding, FAMILY_ROLES, DESIGNATION_KIND_LABELS
+from src.forms import ValuationForm, DesignationForm
+from src.holding_types import SIDES, SIDE_META
+from src.money import cents_to_dollars
 
 bp = Blueprint('main', __name__)
 
-# Icon mapping for UI
-ASSET_ICONS = {
-    'RealEstate': '🏠',
-    'Bank': '🏦',
-    'Investment': '📈',
-    'Vehicle': '🚗',
-    'Jewelry': '💎',
-    'Art': '🎨',
-    'Liability': '💳',
-    'Other': '📦'
-}
+
+def ledger_totals(holdings):
+    totals = {side: sum(h.value_cents for h in holdings if h.side == side) for side in SIDES}
+    totals["net"] = totals["asset"] - totals["liability"]
+    return totals
+
 
 @bp.route('/')
 @login_required
 def dashboard():
-    all_assets = Asset.query.all()
-    total_assets = sum(a.value_estimated for a in all_assets if a.value_estimated > 0)
-    total_liabilities = sum(a.value_estimated for a in all_assets if a.value_estimated < 0)
-    net_worth = total_assets + total_liabilities
-    trust_count = sum(1 for a in all_assets if a.is_in_trust)
-    
-    # --- CHART DATA PREPARATION ---
-    all_dates = set()
-    for asset in all_assets:
-        for app in asset.appraisals:
-            all_dates.add(app.date)
-    
-    all_dates.add(date.today())
-    sorted_dates = sorted(list(all_dates))
-    
-    datasets = []
-    
-    asset_colors = [
-        '#16a34a', '#2563eb', '#9333ea', '#0891b2', '#0d9488', 
-        '#4f46e5', '#059669', '#7c3aed', '#0284c7', '#65a30d'
-    ]
-    
-    liability_colors = [
-        '#dc2626', '#ea580c', '#db2777', '#b91c1c', '#c2410c',
-        '#be123c', '#991b1b', '#9a3412', '#831843', '#7f1d1d'
-    ]
-    
-    a_idx = 0
-    l_idx = 0
-    
-    for asset in all_assets:
-        apps = sorted(asset.appraisals, key=lambda x: x.date)
-        app_map = {a.date: a.value for a in apps}
-        start_date = apps[0].date if apps else date.max
-        data_points = []
-        current_val = 0.0
-        for d in sorted_dates:
-            if d in app_map:
-                current_val = app_map[d]
-            elif d < start_date:
-                current_val = 0.0
-            data_points.append(current_val)
-        
-        if asset.value_estimated < 0:
-            color = liability_colors[l_idx % len(liability_colors)]
-            l_idx += 1
-        else:
-            color = asset_colors[a_idx % len(asset_colors)]
-            a_idx += 1
-            
-        datasets.append({
-            'id': asset.id,
-            'label': asset.name,
-            'data': data_points,
-            'color': color,
-            'type': asset.asset_type,
-            'current_value': asset.value_estimated
-        })
-        
-    chart_payload = {
-        'dates': [d.isoformat() for d in sorted_dates],
-        'datasets': datasets
-    }
+    root = get_root_entity()
+    holdings = Holding.query.all()
+    totals = ledger_totals(holdings)
+    trust_count = sum(1 for h in holdings if h.in_trust)
 
-    return render_template('dashboard.html', 
+    # --- CHART DATA PREPARATION ---
+    # Net worth is assets minus liabilities, so only those two sides are
+    # charted; equity stakes are shown beside it (see Holding.signed_cents).
+    charted = [h for h in holdings if h.side in ("asset", "liability")]
+    all_dates = {v.date for h in charted for v in h.valuations}
+    all_dates.add(date.today())
+    sorted_dates = sorted(all_dates)
+
+    asset_colors = ['#16a34a', '#2563eb', '#9333ea', '#0891b2', '#0d9488',
+                    '#4f46e5', '#059669', '#7c3aed', '#0284c7', '#65a30d']
+    liability_colors = ['#dc2626', '#ea580c', '#db2777', '#b91c1c', '#c2410c',
+                        '#be123c', '#991b1b', '#9a3412', '#831843', '#7f1d1d']
+    a_idx = l_idx = 0
+    datasets = []
+    for h in charted:
+        sign = 1 if h.side == "asset" else -1
+        vals = sorted(h.valuations, key=lambda v: v.date)
+        by_date = {v.date: v.value_cents for v in vals}
+        start = vals[0].date if vals else date.max
+        points, current = [], 0
+        for d in sorted_dates:
+            if d in by_date:
+                current = by_date[d]
+            elif d < start:
+                current = 0
+            points.append(sign * cents_to_dollars(current))
+        if h.side == "liability":
+            color = liability_colors[l_idx % len(liability_colors)]; l_idx += 1
+        else:
+            color = asset_colors[a_idx % len(asset_colors)]; a_idx += 1
+        datasets.append({'id': h.id, 'label': h.name, 'data': points, 'color': color,
+                         'type': h.type_code, 'side': h.side})
+
+    chart_payload = {'dates': [d.isoformat() for d in sorted_dates], 'datasets': datasets}
+
+    return render_template('dashboard.html',
                            active_page='overview',
-                           net_worth=net_worth,
-                           total_assets=total_assets,
-                           total_liabilities=total_liabilities,
+                           root=root,
+                           totals=totals,
                            trust_count=trust_count,
                            chart_payload=chart_payload)
+
 
 @bp.route('/assets')
 @login_required
 def assets_view():
-    all_items = Asset.query.all()
-    
-    # Sort Assets: Highest Value First
-    assets_list = sorted(
-        [a for a in all_items if a.value_estimated >= 0],
-        key=lambda x: x.value_estimated,
-        reverse=True
-    )
-    
-    # Sort Liabilities: Most Negative (Largest Debt) First
-    liabilities_list = sorted(
-        [a for a in all_items if a.value_estimated < 0],
-        key=lambda x: x.value_estimated
-    )
-    
-    return render_template('assets.html', 
-                           assets=assets_list, 
-                           liabilities=liabilities_list, 
-                           active_page='assets',
-                           asset_icons=ASSET_ICONS)
+    """Old address of the ledger page."""
+    return redirect(url_for('main.holdings_view'))
+
+
+@bp.route('/holdings')
+@login_required
+def holdings_view():
+    holdings = Holding.query.all()
+    by_side = {side: sorted([h for h in holdings if h.side == side],
+                            key=lambda h: h.value_cents, reverse=True)
+               for side in SIDES}
+    return render_template('holdings.html',
+                           by_side=by_side,
+                           side_meta=SIDE_META,
+                           totals=ledger_totals(holdings),
+                           root=get_root_entity(),
+                           active_page='assets')
+
 
 @bp.route('/asset/<int:id>')
 @login_required
 def asset_details(id):
-    asset = Asset.query.get_or_404(id)
-    form = AppraisalForm()
-    
-    history = sorted(asset.appraisals, key=lambda x: x.date)
-    
-    if not history:
-        dates = [json.dumps(str(asset.attributes.get('purchase_date', 'Initial'))).strip('"')]
-        values = [asset.value_estimated]
+    return redirect(url_for('main.holding_details', id=id))
+
+
+@bp.route('/holding/<int:id>')
+@login_required
+def holding_details(id):
+    holding = Holding.query.get_or_404(id)
+    form = ValuationForm()
+
+    history = sorted(holding.valuations, key=lambda v: v.date)
+    if history:
+        dates = [v.date.isoformat() for v in history]
+        values = [cents_to_dollars(v.value_cents) for v in history]
     else:
-        dates = [h.date.strftime('%Y-%m-%d') for h in history]
-        values = [h.value for h in history]
-    
-    return render_template('asset_details.html', 
-                           asset=asset, 
-                           form=form, 
-                           chart_dates=dates, 
+        dates = [date.today().isoformat()]
+        values = [cents_to_dollars(holding.value_cents)]
+
+    designation_form = DesignationForm()
+    people = Person.query.order_by(Person.name).all()
+    designation_form.person_id.choices = [(p.id, p.name) for p in people]
+
+    return render_template('holding_details.html',
+                           holding=holding,
+                           htype=holding.htype,
+                           root=get_root_entity(),
+                           form=form,
+                           designation_form=designation_form,
+                           people=people,
+                           kind_labels=DESIGNATION_KIND_LABELS,
+                           chart_dates=dates,
                            chart_values=values,
                            active_page='assets')
+
 
 @bp.route('/timeline')
 @login_required
@@ -148,76 +133,65 @@ def timeline_view():
     # Get filters from URL
     active_filters = request.args.getlist('type')
     if not active_filters:
-        active_filters = None 
-    
+        active_filters = None
+
     all_events = get_timeline_events(active_filters)
-    
     today = date.today()
-    
-    # SPLIT LOGIC UPDATED:
-    # History = Everything <= Today
-    # Upcoming = Everything > Today
+
+    # History = everything up to today; upcoming = everything after.
     history = [e for e in all_events if e['date'] <= today]
     upcoming = [e for e in all_events if e['date'] > today]
-    
-    # Sort History: Newest First (Descending)
     history.sort(key=lambda x: x['date'], reverse=True)
-    
-    # Sort Upcoming: Soonest First (Ascending)
     upcoming.sort(key=lambda x: x['date'])
-    
-    return render_template('timeline.html', 
-                           history=history, 
-                           upcoming=upcoming, 
+
+    return render_template('timeline.html',
+                           history=history,
+                           upcoming=upcoming,
                            active_page='timeline',
                            current_filters=active_filters or [])
 
-# --- NEW: CONTACTS (Formerly Details) ---
+
 @bp.route('/contacts')
 @login_required
 def contacts_view():
     all_people = Person.query.order_by(Person.name).all()
-    
-    family_roles = ['Trustor', 'Trustee', 'Beneficiary', 'Executor']
-    family = [p for p in all_people if p.role in family_roles]
-    
+
+    family = [p for p in all_people if p.has_role(*FAMILY_ROLES)]
+    pros = [p for p in all_people if not p.has_role(*FAMILY_ROLES)]
+
     pro_roles_meta = [
         ('Attorney', 'Estate Attorney'),
         ('Financial Advisor', 'Financial Advisor'),
         ('Accountant', 'CPA / Accountant'),
         ('Funeral Director', 'Funeral Service'),
         ('Insurance', 'Insurance Agent'),
-        ('Medical', 'Primary Doctor')
+        ('Medical', 'Primary Doctor'),
     ]
-    
-    pros = [p for p in all_people if p.role not in family_roles]
-    existing_roles = {p.role for p in pros}
-    
-    missing_pros = []
-    for role_code, label in pro_roles_meta:
-        if role_code not in existing_roles:
-            missing_pros.append({'role': role_code, 'label': label})
-            
-    return render_template('contacts.html', 
-                           family=family, 
-                           pros=pros, 
+    existing_roles = {r for p in all_people for r in p.role_codes}
+    missing_pros = [{'role': code, 'label': label}
+                    for code, label in pro_roles_meta if code not in existing_roles]
+
+    return render_template('contacts.html',
+                           family=family,
+                           pros=pros,
                            missing_pros=missing_pros,
                            active_page='contacts')
 
-# --- NEW: DETAILS (High-Level Trust Info) ---
+
 @bp.route('/details')
 @login_required
 def details_view():
-    # Singleton Pattern: Get the first row or create default
-    profile = TrustProfile.query.first()
-    if not profile:
-        profile = TrustProfile(name="The Family Trust", date_established=date.today())
-        db.session.add(profile)
-        db.session.commit()
-    
-    return render_template('details.html', 
-                           profile=profile,
+    """The trust - the root entity - and the add-ons attached to it."""
+    root = get_root_entity()
+    addons = addon_entities()
+    trust_holdings = Holding.query.filter(Holding.entity_id.is_(None)).all()
+    return render_template('details.html',
+                           profile=root,
+                           addons=addons,
+                           trust_totals=ledger_totals(trust_holdings),
+                           addon_totals={e.id: ledger_totals(e.holdings) for e in addons},
                            active_page='details')
+
 
 @bp.route('/faq')
 @login_required

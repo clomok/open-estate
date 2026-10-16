@@ -14,8 +14,47 @@
 </div>
 
 <div class="grid-2-sidebar" style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
-    
+
     <div>
+        <div class="summary-card" style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="margin: 0;">What the trust holds</h3>
+                <a href="{{ url_for('main.holdings_view') }}" style="color: #2563eb; font-size: 0.9rem;">All holdings →</a>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div><div class="summary-label">Assets</div><div style="font-weight: bold; color: #059669;">{{ trust_totals.asset | currency }}</div></div>
+                <div><div class="summary-label">Liabilities</div><div style="font-weight: bold; color: #dc2626;">{{ trust_totals.liability | currency }}</div></div>
+                <div><div class="summary-label">Net</div><div style="font-weight: bold;">{{ trust_totals.net | currency }}</div></div>
+                {% if trust_totals.equity %}<div><div class="summary-label">Equity stakes</div><div style="font-weight: bold; color: #6d28d9;">{{ trust_totals.equity | currency }}</div></div>{% endif %}
+            </div>
+        </div>
+
+        <div class="summary-card" style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="margin: 0;">Attached to the trust</h3>
+                <a href="{{ url_for('manage.manage_entity') }}" style="background: #2563eb; color: white; text-decoration: none; padding: 0.35rem 0.8rem; border-radius: 4px; font-size: 0.9rem;">+ Add entity</a>
+            </div>
+            <p style="color: #666; font-size: 0.9rem;">Companies, LLCs, retirement accounts, and things held in someone's own name. Optional - most estates need none.</p>
+            {% for e in addons %}
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f3f4f6; padding: 0.6rem 0; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <strong>{{ e.name }}</strong>
+                    <span style="background: #ede9fe; color: #5b21b6; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.3rem;">{{ e.kind_label }}</span>
+                    <div style="font-size: 0.85rem; color: #666;">{{ e.holdings|length }} item(s) · net {{ addon_totals[e.id].net | currency }}</div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <a href="{{ url_for('manage.manage_entity', id=e.id) }}" style="color: #2563eb; font-size: 0.9rem;">Edit</a>
+                    <form method="POST" action="{{ url_for('manage.delete_entity', id=e.id) }}" style="margin: 0;" onsubmit="return confirm('Remove {{ e.name|e }}?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.9rem;">Remove</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <p style="color: #999; font-style: italic; margin-bottom: 0;">Nothing attached. Everything is held directly in the trust.</p>
+            {% endfor %}
+        </div>
+
         <div class="summary-card" style="margin-bottom: 2rem; border-left: 4px solid #f59e0b;">
             <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div>

@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% if holding %}
+    {% set cancel_url = url_for('main.holding_details', id=holding.id) %}
+{% else %}
+    {% set cancel_url = url_for('manage.select_type') %}
+{% endif %}
+{% set side = htype.side %}
+{% set input_style = "width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" %}
+
+<div style="max-width: 700px; margin: 0 auto;">
+    <div style="margin-bottom: 1.5rem;">
+        <a href="{{ cancel_url }}" onclick="return confirmDiscard(event)" style="display: inline-flex; align-items: center; color: #6b7280; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
+            <span style="margin-right: 0.5rem;">←</span> Cancel
+        </a>
+    </div>
+
+    <div style="font-size: 0.85rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
+        {{ side_meta.singular }} · {{ htype.icon }} {{ htype.label if not htype.custom else 'Custom' }}
+    </div>
+    <h1 style="margin-top: 0.25rem; margin-bottom: 2rem;">{{ title }}</h1>
+
+    {% if form.errors %}
+    <div style="background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
+        <h4 style="margin-top: 0; margin-bottom: 0.5rem;">Please correct the following:</h4>
+        <ul style="margin-bottom: 0; padding-left: 1.5rem;">
+            {% for field_name, errors in form.errors.items() %}
+                {% for error in errors %}
+                <li><strong>{{ form[field_name].label.text if field_name in form else field_name }}:</strong> {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if holding and other_types %}
+    <div style="margin-bottom: 1.5rem; font-size: 0.9rem; color: #4b5563;">
+        <label for="typeSwitch">Type:</label>
+        <select id="typeSwitch" onchange="switchType(this.value)" style="padding: 0.3rem;">
+            {% for t in other_types %}
+            <option value="{{ t.code }}" {% if t.code == htype.code %}selected{% endif %}>{{ t.label }}</option>
+            {% endfor %}
+        </select>
+        {% if leftovers %}
+        <div style="margin-top: 0.5rem; background: #fffbeb; border: 1px solid #fcd34d; padding: 0.5rem; border-radius: 4px;">
+            Changing the type: these details have no field on a {{ htype.label }} and will be kept in Notes when you save:
+            <ul style="margin: 0.25rem 0 0 1rem; padding: 0;">{% for l in leftovers %}<li>{{ l }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="summary-card">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">Name / title</label>
+                {{ form.name(style=input_style, placeholder="e.g. Primary Residence") }}
+            </div>
+
+            {% if htype.custom %}
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.custom_type_label.label }}</label>
+                {{ form.custom_type_label(style=input_style) }}
+            </div>
+            {% endif %}
+
+            <div style="background: {% if side == 'liability' %}#fef2f2{% elif side == 'equity' %}#f5f3ff{% else %}#f0fdf4{% endif %}; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ side_meta.value_label }}</label>
+                <div style="position: relative;">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: bold; font-size: 1.25rem;">$</span>
+                    {{ form.value(style="width: 100%; padding: 0.75rem 0.75rem 0.75rem 2rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 1.25rem; font-weight: bold;", inputmode="decimal") }}
+                </div>
+                {% if side == 'liability' %}
+                <div style="font-size: 0.8rem; color: #666; margin-top: 0.4rem;">Enter what is owed as a positive number - it is subtracted from net worth.</div>
+                {% endif %}
+                {% if side == 'equity' %}
+                <div style="margin-top: 1rem;">
+                    <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ form.ownership_pct.label }}</label>
+                    {{ form.ownership_pct(style=input_style, placeholder="e.g. 50") }}
+                </div>
+                {% endif %}
+                {% if side == 'liability' %}
+                <div style="margin-top: 1rem;">
+                    <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ form.secured_by_id.label }}</label>
+                    {{ form.secured_by_id(style=input_style) }}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if htype.fields %}
+            <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #4b5563; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">
+                    {{ htype.label }} details
+                </h4>
+                <div class="grid-2-form">
+                    {% for f in htype.fields %}
+                    {% set field = form['attr_' ~ f.name] %}
+                    <div style="margin-bottom: 1rem; {% if f.type == 'textarea' %}grid-column: 1 / -1;{% endif %}">
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">
+                            {{ f.label }}{% if f.type == 'money' %} ($){% elif f.type == 'percent' %} (%){% endif %}
+                            {% if f.is_sensitive %}<span title="Masked on screen until revealed" style="font-weight: normal; color: #b45309;">🔒</span>{% endif %}
+                        </label>
+                        {{ field(style=input_style, rows=3) if f.type == 'textarea' else field(style=input_style) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if htype.custom %}
+            <div style="background: #f9fafb; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 0.5rem; color: #4b5563; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">Your fields</h4>
+                <p style="margin-top: 0; font-size: 0.85rem; color: #666;">Name each detail and fill it in. Leave a name blank to drop that row.</p>
+                <div id="customRows">
+                    {% for row in custom_rows %}
+                    <div class="custom-row">
+                        <input name="custom_name" value="{{ row.name }}" placeholder="Field name" style="{{ input_style }}">
+                        <input name="custom_value" value="{{ row.value }}" placeholder="Value" style="{{ input_style }}">
+                    </div>
+                    {% endfor %}
+                    {% for _ in range(3 if not custom_rows else 1) %}
+                    <div class="custom-row">
+                        <input name="custom_name" placeholder="Field name, e.g. Slip number" style="{{ input_style }}">
+                        <input name="custom_value" placeholder="Value" style="{{ input_style }}">
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" onclick="addCustomRow()" style="margin-top: 0.5rem; background: none; border: 1px dashed #9ca3af; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer;">+ Add a field</button>
+            </div>
+            {% endif %}
+
+            <div style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 4px;">
+                <div class="grid-2-form">
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ form.entity_id.label }}</label>
+                        {{ form.entity_id(style=input_style) }}
+                        <div style="font-size: 0.8rem; color: #666; margin-top: 0.3rem;">Add an LLC, corporation or account on the <a href="{{ url_for('main.details_view') }}">Trust page</a>.</div>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">{{ form.owner_id.label }}</label>
+                        {{ form.owner_id(style=input_style) }}
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.notes.label }}</label>
+                {{ form.notes(style=input_style, rows=3) }}
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .grid-2-form { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 600px) { .grid-2-form { grid-template-columns: 1fr 1fr; } }
+    .custom-row { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem; margin-bottom: 0.5rem; }
+</style>
+
+<script>
+    var isDirty = false;
+    document.addEventListener('DOMContentLoaded', function() {
+        var form = document.querySelector('.summary-card form');
+        form.addEventListener('change', function() { isDirty = true; });
+        form.addEventListener('input', function() { isDirty = true; });
+        form.addEventListener('submit', function() { isDirty = false; });
+    });
+    function confirmDiscard(event) {
+        if (isDirty && !confirm("You have unsaved changes. Discard them?")) {
+            event.preventDefault();
+            return false;
+        }
+        return true;
+    }
+    function switchType(code) {
+        if (isDirty && !confirm("Switching type reloads the form and drops unsaved changes. Continue?")) return;
+        var url = new URL(window.location.href);
+        url.searchParams.set('type', code);
+        window.location.href = url.toString();
+    }
+    function addCustomRow() {
+        var row = document.querySelector('#customRows .custom-row:last-child').cloneNode(true);
+        row.querySelectorAll('input').forEach(function(i) { i.value = ''; });
+        document.getElementById('customRows').appendChild(row);
+    }
+</script>
+{% endblock %}

@@ -1,128 +1,348 @@
-from datetime import datetime
+"""Schema v3 - the ledger foundation.
+
+The shape, in one breath: every dataset has exactly one root `Entity`, the
+trust. Everything the estate has or owes is a `Holding` on one of three sides
+(asset, liability, equity); a holding with no entity sits in the trust, and
+other entities (an LLC, a corporation, a retirement account, a person's own
+name) are optional add-ons under the root. People carry any number of roles,
+and who inherits what share of which holding is a `BeneficiaryDesignation`.
+
+Money is Integer cents. Dates are Date. Every table carries created_at,
+updated_at and last_verified, because a binder's main failure is going stale.
+
+Changing this file means writing an Alembic migration AND updating
+src/services/backup_schema.py - see AI_INSTRUCTIONS.md section 4.5.
+"""
+
+from datetime import date, datetime, timezone
+
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
+
 from src.extensions import db
+from src.holding_types import SIDES, get_type, SIDE_META
 
-# --- Association Tables ---
-asset_beneficiaries = db.Table('asset_beneficiaries',
-    db.Column('asset_id', db.Integer, db.ForeignKey('asset.id'), primary_key=True),
-    db.Column('person_id', db.Integer, db.ForeignKey('person.id'), primary_key=True),
-    db.Column('percentage', db.Float, default=50.0)
-)
+ENTITY_KINDS = ("trust", "corporation", "llc", "retirement_account", "individual")
+ENTITY_KIND_LABELS = {
+    "trust": "Trust", "corporation": "Corporation", "llc": "LLC",
+    "retirement_account": "Retirement account", "individual": "Held personally",
+}
+PERSON_KINDS = ("individual", "organisation")
+DESIGNATION_KINDS = ("trust_schedule", "account_tod", "will")
+DESIGNATION_KIND_LABELS = {
+    "trust_schedule": "Trust schedule", "account_tod": "Account TOD / POD",
+    "will": "Will",
+}
 
-class Person(db.Model):
+# Roles a person can hold. "Family" roles put them in the top half of the
+# contacts page; the rest are the professional team.
+PERSON_ROLES = [
+    ("Trustor", "Trustor (grantor)"), ("Trustee", "Trustee"),
+    ("SuccessorTrustee", "Successor trustee"), ("Beneficiary", "Beneficiary"),
+    ("Executor", "Executor"), ("Attorney", "Attorney"),
+    ("Financial Advisor", "Financial advisor"), ("Accountant", "Accountant / CPA"),
+    ("Funeral Director", "Funeral service"), ("Medical", "Doctor / medical"),
+    ("Insurance", "Insurance agent"), ("Vendor", "Vendor / service provider"),
+    ("Other", "Other"),
+]
+FAMILY_ROLES = {"Trustor", "Trustee", "SuccessorTrustee", "Beneficiary", "Executor"}
+
+
+def utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _in(column, values):
+    return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+class AuditMixin:
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow,
+                           server_default=func.current_timestamp())
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow,
+                           server_default=func.current_timestamp())
+    # Set by a person pressing "mark verified", never by an edit: an edit
+    # says something changed, verification says someone checked it is true.
+    last_verified = db.Column(db.Date, nullable=True)
+
+    def mark_verified(self, on=None):
+        self.last_verified = on or date.today()
+
+
+# --- People ----------------------------------------------------------------
+
+class Person(AuditMixin, db.Model):
+    __table_args__ = (CheckConstraint(_in("kind", PERSON_KINDS), name="ck_person_kind"),)
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    role = db.Column(db.String(50)) 
+    kind = db.Column(db.String(20), nullable=False, default="individual",
+                     server_default="individual")
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
-    attributes = db.Column(db.JSON, default={})
-    
-    # Relationships
-    assets_owned = db.relationship('Asset', backref='owner', lazy=True)
-    # New: Service links (Vendors)
-    service_jobs = db.relationship('AssetVendor', backref='provider', lazy=True)
+    attributes = db.Column(db.JSON, default=dict)
 
-class Asset(db.Model):
+    roles = db.relationship("PersonRole", backref="person", lazy=True,
+                            cascade="all, delete-orphan", order_by="PersonRole.id")
+    holdings_owned = db.relationship("Holding", backref="owner", lazy=True)
+    service_jobs = db.relationship("HoldingVendor", backref="provider", lazy=True)
+    designations = db.relationship("BeneficiaryDesignation", backref="person", lazy=True)
+
+    @property
+    def role_codes(self):
+        return [r.role for r in self.roles]
+
+    @property
+    def role_labels(self):
+        labels = dict(PERSON_ROLES)
+        return [labels.get(r.role, r.role) for r in self.roles]
+
+    def has_role(self, *codes):
+        return any(r.role in codes for r in self.roles)
+
+    def set_roles(self, codes):
+        wanted = list(dict.fromkeys(c for c in codes if c))
+        keep = [r for r in self.roles if r.role in wanted]
+        have = {r.role for r in keep}
+        self.roles = keep + [PersonRole(role=c) for c in wanted if c not in have]
+
+
+class PersonRole(AuditMixin, db.Model):
+    __tablename__ = "person_role"
+    __table_args__ = (UniqueConstraint("person_id", "role", name="uq_person_role"),)
+
     id = db.Column(db.Integer, primary_key=True)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id", ondelete="CASCADE"),
+                          nullable=False)
+    role = db.Column(db.String(50), nullable=False)
+
+
+# --- Entities: the trust, and what hangs off it ----------------------------
+
+class Entity(AuditMixin, db.Model):
+    __table_args__ = (
+        CheckConstraint(_in("kind", ENTITY_KINDS), name="ck_entity_kind"),
+        CheckConstraint("is_root = 0 OR kind = 'trust'", name="ck_entity_root_is_trust"),
+        CheckConstraint("(is_root = 1 AND parent_id IS NULL) OR "
+                        "(is_root = 0 AND parent_id IS NOT NULL)",
+                        name="ck_entity_root_has_no_parent"),
+        # Exactly one root per dataset: at most one row may have is_root = 1.
+        Index("uq_entity_one_root", "is_root", unique=True,
+              sqlite_where=text("is_root = 1")),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(30), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    is_root = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    parent_id = db.Column(db.Integer, db.ForeignKey("entity.id"), nullable=True)
+    # For kind `individual`: whose own name the holdings are in.
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=True)
+
+    date_established = db.Column(db.Date, nullable=True)
+    # Transition planning (carried over from the old TrustProfile)
+    date_death_estimated = db.Column(db.Date, nullable=True)
+    date_death_actual = db.Column(db.Date, nullable=True)
+    review_frequency = db.Column(db.String(50), default="Annual")
+    next_review_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text)
+    attributes = db.Column(db.JSON, default=dict)
+
+    parent = db.relationship("Entity", remote_side=[id], backref="children")
+    person = db.relationship("Person")
+    holdings = db.relationship("Holding", backref="entity", lazy=True)
+
+    @property
+    def kind_label(self):
+        return ENTITY_KIND_LABELS.get(self.kind, self.kind)
+
+
+# --- The ledger ------------------------------------------------------------
+
+class Holding(AuditMixin, db.Model):
+    __table_args__ = (
+        CheckConstraint(_in("side", SIDES), name="ck_holding_side"),
+        CheckConstraint("value_cents >= 0", name="ck_holding_value_positive"),
+        CheckConstraint("ownership_pct IS NULL OR (ownership_pct >= 0 AND ownership_pct <= 100)",
+                        name="ck_holding_ownership_pct"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    side = db.Column(db.String(10), nullable=False)
+    type_code = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(150), nullable=False)
-    asset_type = db.Column(db.String(50))
-    
-    is_in_trust = db.Column(db.Boolean, default=True)
-    owner_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=True)
-    
-    value_estimated = db.Column(db.Float, default=0.0)
-    attributes = db.Column(db.JSON, default={})
-    
-    # Relationships
-    beneficiaries = db.relationship('Person', secondary=asset_beneficiaries, lazy='subquery',
-        backref=db.backref('future_assets', lazy=True))
-    
-    appraisals = db.relationship('Appraisal', backref='asset', lazy=True, cascade="all, delete-orphan", order_by="desc(Appraisal.date)")
-    
-    # --- PHASE 5 EXPANSION ---
-    structures = db.relationship('PropertyStructure', backref='asset', lazy=True, cascade="all, delete-orphan")
-    location_points = db.relationship('LocationPoint', backref='asset', lazy=True, cascade="all, delete-orphan")
-    bills = db.relationship('RecurringBill', backref='asset', lazy=True, cascade="all, delete-orphan")
-    vendors = db.relationship('AssetVendor', backref='asset', lazy=True, cascade="all, delete-orphan")
-
-class Appraisal(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
-    value = db.Column(db.Float, nullable=False)
-    source = db.Column(db.String(100)) # e.g. "Zillow", "Official Appraiser", "KBB"
+    # NULL = held in the trust (the root entity). A non-null value is an add-on.
+    entity_id = db.Column(db.Integer, db.ForeignKey("entity.id"), nullable=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=True)
+    # Always positive; the side gives the sign. Net worth = assets - liabilities.
+    value_cents = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    attributes = db.Column(db.JSON, default=dict)
+    ownership_pct = db.Column(db.Float, nullable=True)          # equity only
+    secured_by_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="SET NULL"),
+                              nullable=True)                    # liability only
     notes = db.Column(db.Text)
 
-class Task(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(20), default='Pending') 
-    due_date = db.Column(db.DateTime, nullable=True)
-    is_recurring = db.Column(db.Boolean, default=False)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=True)
+    secured_by = db.relationship("Holding", remote_side=[id], backref="secures")
+    valuations = db.relationship("Valuation", backref="holding", lazy=True,
+                                 cascade="all, delete-orphan",
+                                 order_by="desc(Valuation.date)")
+    structures = db.relationship("PropertyStructure", backref="holding", lazy=True,
+                                 cascade="all, delete-orphan")
+    location_points = db.relationship("LocationPoint", backref="holding", lazy=True,
+                                      cascade="all, delete-orphan")
+    bills = db.relationship("RecurringBill", backref="holding", lazy=True,
+                            cascade="all, delete-orphan")
+    vendors = db.relationship("HoldingVendor", backref="holding", lazy=True,
+                              cascade="all, delete-orphan")
+    beneficiary_designations = db.relationship(
+        "BeneficiaryDesignation", backref="holding", lazy=True,
+        cascade="all, delete-orphan", order_by="BeneficiaryDesignation.id")
 
-class Milestone(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    date_event = db.Column(db.DateTime, nullable=True)
-    description = db.Column(db.Text)
-    is_completed = db.Column(db.Boolean, default=False)
+    @property
+    def htype(self):
+        return get_type(self.side, self.type_code)
 
-# --- PHASE 5 NEW MODELS ---
+    @property
+    def type_label(self):
+        t = self.htype
+        if t and t.custom:
+            return (self.attributes or {}).get("type_label") or "Custom"
+        return t.label if t else self.type_code
 
-class PropertyStructure(db.Model):
-    """Accommodations: Sheds, Pools, Decks, Garages."""
+    @property
+    def icon(self):
+        t = self.htype
+        return t.icon if t else "📦"
+
+    @property
+    def side_meta(self):
+        return SIDE_META[self.side]
+
+    @property
+    def in_trust(self):
+        return self.entity_id is None
+
+    @property
+    def signed_cents(self):
+        """Contribution to net worth: assets +, liabilities -, equity 0.
+
+        Equity is reported beside net worth, not inside it - see the
+        2026-10-15 decision in the project record (double counting when the
+        entity a stake is in is itself modelled)."""
+        if self.side == "asset":
+            return self.value_cents
+        if self.side == "liability":
+            return -self.value_cents
+        return 0
+
+    def share_totals(self):
+        """{designation kind: total percentage} - each kind should reach 100."""
+        totals = {}
+        for d in self.beneficiary_designations:
+            totals[d.kind] = round(totals.get(d.kind, 0) + d.percentage, 4)
+        return totals
+
+
+class Valuation(AuditMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)     # e.g. "North Garden Shed"
-    structure_type = db.Column(db.String(50))            # e.g. "Outbuilding", "Deck", "Pool"
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    value_cents = db.Column(db.Integer, nullable=False)
+    source = db.Column(db.String(100))      # e.g. "Zillow", "Statement", "KBB"
+    notes = db.Column(db.Text)
+
+
+class BeneficiaryDesignation(AuditMixin, db.Model):
+    __tablename__ = "beneficiary_designation"
+    __table_args__ = (
+        UniqueConstraint("holding_id", "person_id", "kind", name="uq_designation"),
+        CheckConstraint(_in("kind", DESIGNATION_KINDS), name="ck_designation_kind"),
+        CheckConstraint("percentage > 0 AND percentage <= 100", name="ck_designation_pct"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    # No cascade from person: deleting someone must not silently erase who
+    # inherits what. The delete is refused until their shares are reassigned.
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
+    percentage = db.Column(db.Float, nullable=False)
+    kind = db.Column(db.String(20), nullable=False, default="trust_schedule")
+    notes = db.Column(db.Text)
+
+    @property
+    def kind_label(self):
+        return DESIGNATION_KIND_LABELS.get(self.kind, self.kind)
+
+
+# --- Sub-items (offered on every holding) ----------------------------------
+
+class PropertyStructure(AuditMixin, db.Model):
+    """Accommodations: sheds, pools, decks, garages."""
+    id = db.Column(db.Integer, primary_key=True)
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    structure_type = db.Column(db.String(50))
     description = db.Column(db.Text)
     date_built = db.Column(db.Date, nullable=True)
-    date_last_maintained = db.Column(db.Date, nullable=True) # "When was this last painted/serviced?"
+    date_last_maintained = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text)
 
-class LocationPoint(db.Model):
-    """Coordinate Ledger for specific items on a property."""
+
+class LocationPoint(AuditMixin, db.Model):
+    """A pin: where a specific thing is (septic lid, safe, water shutoff)."""
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    label = db.Column(db.String(100), nullable=False)    # e.g. "Septic Tank Lid"
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    label = db.Column(db.String(100), nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
-    description = db.Column(db.Text)                     # e.g. "Buried 6 inches deep, under fake rock"
+    description = db.Column(db.Text)
 
-class RecurringBill(db.Model):
-    """Holding costs associated with an asset."""
+
+class RecurringBill(AuditMixin, db.Model):
+    """A cost of holding something: tax, insurance, utilities, HOA, fees."""
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)     # e.g. "County Property Tax"
-    payee = db.Column(db.String(100))                    # e.g. "San Diego Treasurer"
-    account_number = db.Column(db.String(100))           # NEW: Migrated from Utility
-    amount_estimated = db.Column(db.Float, default=0.0)
-    frequency = db.Column(db.String(50))                 # e.g. "Annual", "Monthly"
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    payee = db.Column(db.String(100))
+    account_number = db.Column(db.String(100))
+    amount_cents = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    frequency = db.Column(db.String(50))
     is_autopay = db.Column(db.Boolean, default=False)
     next_due_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text)
 
-class AssetVendor(db.Model):
-    """Link a Person/Contact to a specific Asset with a Role."""
+
+class HoldingVendor(AuditMixin, db.Model):
+    """A contact's role on one specific holding (pool cleaner, mechanic, advisor)."""
+    __tablename__ = "holding_vendor"
+
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
-    role = db.Column(db.String(100), nullable=False)     # e.g. "Pool Cleaner", "Landscaper" (Specific to this asset)
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="CASCADE"),
+                           nullable=False)
+    person_id = db.Column(db.Integer, db.ForeignKey("person.id"), nullable=False)
+    role = db.Column(db.String(100), nullable=False)
     notes = db.Column(db.Text)
 
-# --- PHASE 6: TRUST DETAILS ---
 
-class TrustProfile(db.Model):
-    """Singleton model to store high-level trust configuration."""
+# --- Left for Phase B, which replaces both with `event` ---------------------
+
+class Task(AuditMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), default="The Family Trust")
-    date_established = db.Column(db.Date, nullable=True)
-    
-    # Transition Planning
-    date_death_estimated = db.Column(db.Date, nullable=True)  # "Projected Horizon"
-    date_death_actual = db.Column(db.Date, nullable=True)     # Triggers active transition mode
-    
-    # Administrative
-    review_frequency = db.Column(db.String(50), default="Annual")
-    next_review_date = db.Column(db.Date, nullable=True)
-    notes = db.Column(db.Text)
+    title = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(20), default="Pending")
+    due_date = db.Column(db.Date, nullable=True)
+    is_recurring = db.Column(db.Boolean, default=False)
+    holding_id = db.Column(db.Integer, db.ForeignKey("holding.id", ondelete="SET NULL"),
+                           nullable=True)
+
+
+class Milestone(AuditMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    date_event = db.Column(db.Date, nullable=True)
+    description = db.Column(db.Text)
+    is_completed = db.Column(db.Boolean, default=False)

@@ -25,23 +25,21 @@
 
         <div style="margin-right: 2rem; margin-bottom: 0.5rem;">
             <h3 style="margin: 0; font-size: 1.25rem;">{{ person.name }}</h3>
-            <span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
-                {{ person.role }}
-            </span>
+            {% for label in person.role_labels %}<span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem; margin-right: 0.25rem;">{{ label }}</span>{% endfor %}
         </div>
         
         <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
-            {% for asset in person.assets_owned %}
-                <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="text-decoration: none;">
+            {% for asset in person.holdings_owned %}
+                <a href="{{ url_for('main.holding_details', id=asset.id) }}" style="text-decoration: none;">
                     <span style="background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
                         Owns: {{ asset.name }}
                     </span>
                 </a>
             {% endfor %}
-            {% for asset in person.future_assets %}
-                <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="text-decoration: none;">
+            {% for d in person.designations %}
+                <a href="{{ url_for('main.holding_details', id=d.holding_id) }}#beneficiaries" style="text-decoration: none;">
                     <span style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
-                        Beneficiary: {{ asset.name }}
+                        Inherits {{ '%g' % d.percentage }}%: {{ d.holding.name }}
                     </span>
                 </a>
             {% endfor %}
@@ -74,6 +72,14 @@
                 "{{ person.attributes.notes }}"
             </div>
             {% endif %}
+
+            <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #9ca3af;">
+                <span>{% if person.last_verified %}Verified {{ person.last_verified }}{% else %}Never verified{% endif %}</span>
+                <form method="POST" action="{{ url_for('manage.verify_person', id=person.id) }}" style="margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="background: none; border: 1px solid #d1d5db; color: #047857; border-radius: 4px; padding: 0.1rem 0.5rem; cursor: pointer; font-size: 0.8rem;">✓ Verified</button>
+                </form>
+            </div>
         </div>
     </div>
     {% else %}
@@ -97,16 +103,14 @@
 
         <div style="margin-right: 2rem; margin-bottom: 0.5rem;">
             <h3 style="margin: 0; font-size: 1.25rem;">{{ person.name }}</h3>
-            <span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem;">
-                {{ person.role }}
-            </span>
+            {% for label in person.role_labels %}<span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; display: inline-block; margin-top: 0.25rem; margin-right: 0.25rem;">{{ label }}</span>{% endfor %}
         </div>
 
         <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
             {% for job in person.service_jobs %}
-                <a href="{{ url_for('main.asset_details', id=job.asset.id) }}" style="text-decoration: none;">
+                <a href="{{ url_for('main.holding_details', id=job.holding.id) }}" style="text-decoration: none;">
                     <span style="background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">
-                        {{ job.role }} for: {{ job.asset.name }}
+                        {{ job.role }} for: {{ job.holding.name }}
                     </span>
                 </a>
             {% endfor %}
@@ -119,9 +123,16 @@
             {% if person.phone %}
             <div style="margin-bottom: 0.5rem;">{{ person.phone }}</div>
             {% endif %}
-            {% if person.attributes.address %}
+            {% if person.attributes and person.attributes.get('address') %}
             <div style="white-space: pre-wrap; margin-bottom: 0.5rem;">{{ person.attributes.address }}</div>
             {% endif %}
+            <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #9ca3af;">
+                <span>{% if person.last_verified %}Verified {{ person.last_verified }}{% else %}Never verified{% endif %}</span>
+                <form method="POST" action="{{ url_for('manage.verify_person', id=person.id) }}" style="margin: 0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" style="background: none; border: 1px solid #d1d5db; color: #047857; border-radius: 4px; padding: 0.1rem 0.5rem; cursor: pointer; font-size: 0.8rem;">✓ Verified</button>
+                </form>
+            </div>
         </div>
     </div>
     {% endfor %}

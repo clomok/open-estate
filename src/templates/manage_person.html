@@ -14,8 +14,15 @@
             </div>
 
             <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.role.label }}</label>
-                {{ form.role(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.kind.label }}</label>
+                {{ form.kind(style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;") }}
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-weight: bold; margin-bottom: 0.5rem;">{{ form.roles.label }}</label>
+                <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">Tick every role that applies - a surviving spouse is often trustee and beneficiary both.</div>
+                {{ form.roles(class_="role-checks") }}
+                {% for error in form.roles.errors %}<div style="color: #b91c1c; font-size: 0.85rem;">{{ error }}</div>{% endfor %}
             </div>
 
             <div class="grid-2-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
@@ -46,4 +53,8 @@
         </form>
     </div>
 </div>
+<style>
+    .role-checks { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.3rem 1rem; }
+    .role-checks li { display: flex; align-items: center; gap: 0.4rem; }
+</style>
 {% endblock %}

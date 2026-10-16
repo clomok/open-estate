@@ -6,26 +6,30 @@
 <div class="grid-3">
     <div class="summary-card">
         <div class="summary-label">Net Worth</div>
-        <div class="summary-value {% if net_worth >= 0 %}text-green{% else %}text-red{% endif %}">
-            {{ net_worth | currency }}
+        <div class="summary-value {% if totals.net >= 0 %}text-green{% else %}text-red{% endif %}">
+            {{ totals.net | currency }}
         </div>
-        <span style="font-size: 0.9rem; color: #666;">Total Estate Value</span>
+        <span style="font-size: 0.9rem; color: #666;">Assets minus liabilities</span>
     </div>
 
     <div class="summary-card">
         <div class="summary-label">Total Assets</div>
-        <div class="summary-value text-green">
-            {{ total_assets | currency }}
-        </div>
+        <div class="summary-value text-green">{{ totals.asset | currency }}</div>
     </div>
 
     <div class="summary-card">
         <div class="summary-label">Liabilities</div>
-        <div class="summary-value text-red">
-            {{ total_liabilities | currency }}
-        </div>
+        <div class="summary-value text-red">{{ totals.liability | currency }}</div>
     </div>
 </div>
+
+{% if totals.equity %}
+<div class="summary-card" style="margin-bottom: 2rem; border-left: 4px solid #8b5cf6;">
+    <div class="summary-label">Equity Stakes</div>
+    <div class="summary-value" style="color: #6d28d9;">{{ totals.equity | currency }}</div>
+    <span style="font-size: 0.85rem; color: #666;">Shown beside net worth, not added to it: when the company a stake is in is set up as an entity, its holdings are already counted above.</span>
+</div>
+{% endif %}
 
 <div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -66,9 +70,9 @@
 <div class="grid-3">
     <div class="summary-card">
         <div class="summary-label">Trust Status</div>
-        <h3>Active</h3>
+        <h3>{{ root.name }}</h3>
         <p style="color: #666; font-size: 0.9rem;">
-            {{ trust_count }} items currently held in trust.
+            {{ trust_count }} items held directly in the trust.
         </p>
     </div>
     
@@ -185,7 +189,7 @@
             }
         } else {
             finalDatasets = activeDatasets.map(ds => {
-                const stackGroup = ds.current_value >= 0 ? 'stack_assets' : 'stack_liabilities';
+                const stackGroup = ds.side === 'liability' ? 'stack_liabilities' : 'stack_assets';
                 return {
                     label: ds.label,
                     data: ds.data,

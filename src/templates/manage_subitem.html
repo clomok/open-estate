@@ -5,7 +5,7 @@
     <h1 style="margin-bottom: 2rem;">{{ title }}</h1>
     
     <div style="margin-bottom: 1rem;">
-        <span style="color: #666;">For Asset:</span> <strong>{{ asset.name }}</strong>
+        <span style="color: #666;">For:</span> <strong>{{ holding.icon }} {{ holding.name }}</strong>
     </div>
 
     <div class="summary-card">
@@ -38,7 +38,7 @@
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem;">
-                <a href="{{ url_for('main.asset_details', id=asset.id) }}" style="color: #666; text-decoration: none;">Cancel</a>
+                <a href="{{ url_for('main.holding_details', id=holding.id) }}" style="color: #666; text-decoration: none;">Cancel</a>
                 {{ form.submit(style="background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem;") }}
             </div>
         </form>

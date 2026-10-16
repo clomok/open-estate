@@ -1,18 +1,7 @@
 from datetime import date, datetime
 from flask import url_for
-from src.models import Milestone, Task, RecurringBill, Asset, PropertyStructure, Appraisal
-
-# Define icons here to be available for logic
-ASSET_ICONS = {
-    'RealEstate': '🏠',
-    'Bank': '🏦',
-    'Investment': '📈',
-    'Vehicle': '🚗',
-    'Jewelry': '💎',
-    'Art': '🎨',
-    'Liability': '💳',
-    'Other': '📦'
-}
+from src.models import Milestone, Task, RecurringBill, Holding, PropertyStructure
+from src.money import format_cents
 
 def get_timeline_events(filter_types=None):
     """
@@ -35,8 +24,7 @@ def get_timeline_events(filter_types=None):
     if not filter_types or 'milestone' in filter_types:
         for m in Milestone.query.all():
             if m.date_event:
-                # Handle datetime vs date
-                d = m.date_event.date() if isinstance(m.date_event, datetime) else m.date_event
+                d = m.date_event
                 events.append({
                     'date': d,
                     'title': m.title,
@@ -54,18 +42,18 @@ def get_timeline_events(filter_types=None):
             events.append({
                 'date': b.next_due_date,
                 'title': b.name,
-                'description': f"Payee: {b.payee} (~${b.amount_estimated:.0f})",
+                'description': f"Payee: {b.payee} (~{format_cents(b.amount_cents)})",
                 'type': 'financial',
                 'type_label': 'Bill Due',
                 'icon': '💳',
-                'link': url_for('main.asset_details', id=b.asset_id) + '#tab-bills',
+                'link': url_for('main.holding_details', id=b.holding_id) + '#tab-bills',
                 'is_past': b.next_due_date < today
             })
 
     # 3. TASKS
     if not filter_types or 'task' in filter_types:
         for t in Task.query.filter(Task.due_date != None).all():
-            d = t.due_date.date() if isinstance(t.due_date, datetime) else t.due_date
+            d = t.due_date
             events.append({
                 'date': d,
                 'title': t.title,
@@ -73,18 +61,17 @@ def get_timeline_events(filter_types=None):
                 'type': 'task',
                 'type_label': 'Task',
                 'icon': '✅',
-                'link': url_for('main.asset_details', id=t.asset_id) if t.asset_id else '#',
+                'link': url_for('main.holding_details', id=t.holding_id) if t.holding_id else '#',
                 'is_past': d < today
             })
 
     # 4. ASSET HISTORY (Purchases & Appraisals)
     if not filter_types or 'history' in filter_types:
-        for a in Asset.query.all():
-            # Get specific icon or default
-            icon_char = ASSET_ICONS.get(a.asset_type, '📦')
+        for a in Holding.query.all():
+            icon_char = a.icon
 
             # A. Purchase Date (from attributes)
-            p_date_str = a.attributes.get('purchase_date')
+            p_date_str = (a.attributes or {}).get('purchase_date')
             if p_date_str:
                 try:
                     p_date = datetime.strptime(p_date_str, '%Y-%m-%d').date()
@@ -95,22 +82,22 @@ def get_timeline_events(filter_types=None):
                         'type': 'asset',
                         'type_label': 'Purchased',
                         'icon': icon_char, # Updated to match asset
-                        'link': url_for('main.asset_details', id=a.id),
+                        'link': url_for('main.holding_details', id=a.id),
                         'is_past': True
                     })
-                except:
+                except ValueError:
                     pass
             
             # B. Appraisals (History)
-            for app in a.appraisals:
+            for app in a.valuations:
                 events.append({
                     'date': app.date,
                     'title': a.name,
-                    'description': f"Valued at ${app.value:,.0f} ({app.source})",
+                    'description': f"Valued at {format_cents(app.value_cents)} ({app.source})",
                     'type': 'history',
                     'type_label': 'Appraisal',
                     'icon': icon_char, # Updated to match asset
-                    'link': url_for('main.asset_details', id=a.id),
+                    'link': url_for('main.holding_details', id=a.id),
                     'is_past': True
                 })
 
@@ -124,7 +111,7 @@ def get_timeline_events(filter_types=None):
                 'type': 'maintenance',
                 'type_label': 'Maintenance',
                 'icon': '🛠️',
-                'link': url_for('main.asset_details', id=s.asset_id) + '#tab-structures',
+                'link': url_for('main.holding_details', id=s.holding_id) + '#tab-structures',
                 'is_past': True
             })
 

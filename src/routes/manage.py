@@ -1,272 +1,403 @@
-import json
-from datetime import date, datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from datetime import date
+
+from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from sqlalchemy.exc import IntegrityError
+
 from src.extensions import db
-from src.models import Asset, Person, Appraisal, PropertyStructure, LocationPoint, RecurringBill, AssetVendor, TrustProfile
-from src.forms import (
-    get_form_class, AppraisalForm, PersonForm, 
-    StructureForm, LocationPointForm, RecurringBillForm, AssetVendorForm, TrustProfileForm
-)
+from src.models import (Holding, Person, Valuation, PropertyStructure, LocationPoint,
+                        RecurringBill, HoldingVendor, BeneficiaryDesignation, Entity)
+from src.forms import (build_holding_form, ValuationForm, PersonForm, DesignationForm,
+                       StructureForm, LocationPointForm, RecurringBillForm,
+                       HoldingVendorForm, TrustProfileForm, EntityForm)
+from src.holding_types import (SIDES, SIDE_META, get_type, types_for, parse_field,
+                               validate_attributes, input_value)
 from src.services.auth_service import login_required
+from src.services.estate import get_root_entity, addon_entities
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
 
-ASSET_TYPES_META = [
-    ('RealEstate', 'Real Estate Property', '🏠'),
-    ('Bank', 'Bank Account', '🏦'),
-    ('Investment', 'Investment Portfolio', '📈'),
-    ('Vehicle', 'Vehicle', '🚗'),
-    ('Jewelry', 'Jewelry / Watch', '💎'),
-    ('Art', 'Art / Collectible', '🎨'),
-    ('Liability', 'Loan / Debt', '💳'),
-    ('Other', 'Other Asset', '📦')
-]
 
-def clean_number(value):
-    """Helper: format float as int if no decimal part, else float."""
-    try:
-        f = float(value)
-        if f.is_integer():
-            return int(f)
-        return f
-    except (ValueError, TypeError):
-        return value
+# --- HOLDINGS ----------------------------------------------------------------
 
-# --- ASSET MANAGEMENT ---
-
+@bp.route('/holding/select-type')
 @bp.route('/asset/select-type')
 @login_required
 def select_type():
-    return render_template('select_type.html', asset_types=ASSET_TYPES_META, active_page='assets')
+    sides = [(side, SIDE_META[side], types_for(side)) for side in SIDES]
+    return render_template('select_type.html', sides=sides, active_page='assets')
 
-@bp.route('/asset/new/<type_code>', methods=['GET', 'POST'])
+
+def _form_choices(form, holding=None):
+    root = get_root_entity()
+    form.entity_id.choices = [(0, f"{root.name} (the trust)")] + [
+        (e.id, f"{e.name} · {e.kind_label}") for e in addon_entities()]
+    people = Person.query.order_by(Person.name).all()
+    form.owner_id.choices = [(0, '— No individual owner —')] + [(p.id, p.name) for p in people]
+    assets = Holding.query.filter_by(side="asset").order_by(Holding.name).all()
+    form.secured_by_id.choices = [(0, '— Not secured —')] + [
+        (h.id, h.name) for h in assets if holding is None or h.id != holding.id]
+
+
+def _prefill(form, holding, htype):
+    """GET of the edit page: put the stored values into the form."""
+    form.name.data = holding.name
+    form.value.data = holding.value_cents
+    form.entity_id.data = holding.entity_id or 0
+    form.owner_id.data = holding.owner_id or 0
+    form.ownership_pct.data = holding.ownership_pct
+    form.secured_by_id.data = holding.secured_by_id or 0
+    form.notes.data = holding.notes
+    attrs = holding.attributes or {}
+    if htype.custom:
+        form.custom_type_label.data = attrs.get("type_label", "")
+    for f in htype.fields:
+        if f.name in attrs:
+            getattr(form, "attr_" + f.name).data = input_value(f, attrs[f.name])
+
+
+def _custom_rows():
+    names = request.form.getlist("custom_name")
+    values = request.form.getlist("custom_value")
+    return [{"name": n.strip(), "value": v.strip()}
+            for n, v in zip(names, values) if n.strip()]
+
+
+def _save_holding(holding, form, htype, leftover_notes=()):
+    """Copy a validated form onto a holding. Returns a list of problems; the
+    holding is only changed when the list is empty."""
+    if htype.custom:
+        attrs = {"type_label": form.custom_type_label.data.strip(), "fields": _custom_rows()}
+    else:
+        attrs = {}
+        for f in htype.fields:
+            value = parse_field(f, getattr(form, "attr_" + f.name).data)
+            if value is not None:
+                attrs[f.name] = value
+    problems = validate_attributes(htype, attrs)
+
+    secured_by = form.secured_by_id.data or None
+    if htype.side == "liability" and secured_by:
+        target = db.session.get(Holding, secured_by)
+        if target is None or target.side != "asset" or target.id == holding.id:
+            problems.append("A liability can only be secured by an asset.")
+    if problems:
+        return problems
+
+    root = get_root_entity()
+    holding.side = htype.side
+    holding.type_code = htype.code
+    holding.name = form.name.data
+    holding.value_cents = form.value.data or 0
+    entity_id = form.entity_id.data or None
+    holding.entity_id = None if entity_id == root.id else entity_id
+    holding.owner_id = form.owner_id.data or None
+    holding.ownership_pct = form.ownership_pct.data if htype.side == "equity" else None
+    holding.secured_by_id = secured_by if htype.side == "liability" else None
+    notes = (form.notes.data or "").strip()
+    if leftover_notes:
+        notes = "\n".join([notes, *leftover_notes]).strip()
+    holding.notes = notes or None
+    holding.attributes = attrs
+    return []
+
+
+def _sync_value(holding):
+    """The holding's value is its most recent valuation, when it has any."""
+    latest = (Valuation.query.filter_by(holding_id=holding.id)
+              .order_by(Valuation.date.desc(), Valuation.id.desc()).first())
+    if latest:
+        holding.value_cents = latest.value_cents
+
+
+@bp.route('/holding/new/<side>/<type_code>', methods=['GET', 'POST'])
 @login_required
-def create_asset_step2(type_code):
-    FormClass = get_form_class(type_code)
-    form = FormClass()
-    
-    people = Person.query.all()
-    form.owner_id.choices = [(0, '--- No Individual Owner ---')] + [(p.id, p.name) for p in people]
+def create_holding(side, type_code):
+    htype = get_type(side, type_code)
+    if htype is None:
+        abort(404)
+    form = build_holding_form(htype)()
+    _form_choices(form)
+    if request.method == 'GET':
+        form.entity_id.data = 0
 
     if form.validate_on_submit():
-        asset = Asset()
-        asset.asset_type = type_code
-        save_asset_from_form(asset, form)
-        
-        db.session.add(asset)
-        db.session.commit()
-        
-        # Smart Appraisal Creation Logic
-        if hasattr(form, 'purchase_date') and form.purchase_date.data:
-            try:
-                p_date = datetime.strptime(form.purchase_date.data, '%Y-%m-%d').date()
-                p_price_field = getattr(form, 'purchase_price', None)
-                p_val = p_price_field.data if (p_price_field and p_price_field.data) else 0.0
-                
-                purchase_appraisal = Appraisal(
-                    asset_id=asset.id,
-                    date=p_date,
-                    value=p_val,
-                    source="Purchase",
-                    notes="Original Purchase Price"
-                )
-                db.session.add(purchase_appraisal)
-            except ValueError:
-                pass
+        holding = Holding()
+        problems = _save_holding(holding, form, htype)
+        if not problems:
+            db.session.add(holding)
+            db.session.flush()
 
-        if asset.value_estimated != 0:
-            skip = False
-            if hasattr(form, 'purchase_date') and form.purchase_date.data:
-                 if form.purchase_date.data == date.today().isoformat() and \
-                    getattr(form, 'purchase_price', None) and \
-                    getattr(form, 'purchase_price').data == asset.value_estimated:
-                     skip = True
-
-            if not skip:
-                current_appraisal = Appraisal(
-                    asset_id=asset.id,
-                    date=date.today(),
-                    value=asset.value_estimated,
-                    source="Initial Entry",
-                    notes="Current value at time of recording"
-                )
-                db.session.add(current_appraisal)
-
-        db.session.commit()
-        flash(f'Created {asset.name}', 'success')
-        return redirect(url_for('main.assets_view'))
-    
+            # Opening history: the purchase, then today's value.
+            attrs = holding.attributes or {}
+            purchase_date = attrs.get("purchase_date")
+            if purchase_date:
+                db.session.add(Valuation(holding_id=holding.id,
+                                         date=date.fromisoformat(purchase_date),
+                                         value_cents=attrs.get("purchase_price") or 0,
+                                         source="Purchase", notes="Original purchase price"))
+            if holding.value_cents and not (
+                    purchase_date == date.today().isoformat()
+                    and attrs.get("purchase_price") == holding.value_cents):
+                db.session.add(Valuation(holding_id=holding.id, date=date.today(),
+                                         value_cents=holding.value_cents,
+                                         source="Initial entry",
+                                         notes="Value at the time it was recorded"))
+            db.session.flush()
+            _sync_value(holding)
+            db.session.commit()
+            flash(f'Created {holding.name}', 'success')
+            return redirect(url_for('main.holding_details', id=holding.id))
+        for p in problems:
+            flash(p, 'error')
     elif request.method == 'POST':
         flash('There were errors in your form submission. Please check below.', 'error')
 
-    form.asset_type.data = type_code
-    # PASS ASSET_ID=NONE for New Creation
-    return render_template('manage_asset.html', form=form, title=f"Add {type_code}", type_code=type_code, active_page='assets', asset_id=None)
+    return render_template('manage_holding.html', form=form, htype=htype,
+                           side_meta=SIDE_META[side], holding=None,
+                           custom_rows=_custom_rows() if request.method == 'POST' else [],
+                           title=f"Add {htype.label if not htype.custom else 'a custom ' + SIDE_META[side]['singular'].lower()}",
+                           active_page='assets')
 
+
+@bp.route('/holding/edit/<int:id>', methods=['GET', 'POST'])
 @bp.route('/asset/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-def manage_asset(id):
-    asset = Asset.query.get_or_404(id)
-    FormClass = get_form_class(asset.asset_type)
-    form = FormClass(obj=asset)
+def edit_holding(id):
+    holding = Holding.query.get_or_404(id)
+    current = holding.htype
+    # ?type=<code> switches type within the same side; matching fields carry
+    # over and the rest move into notes, so a change of type loses nothing.
+    htype = get_type(holding.side, request.args.get('type', holding.type_code)) or current
+    if htype is None:
+        abort(404)
+    form = build_holding_form(htype)()
+    _form_choices(form, holding)
+
+    leftovers = []
+    if htype is not current and not (current and current.custom):
+        for key, value in (holding.attributes or {}).items():
+            if htype.field(key) is None:
+                label = current.field(key).label if current and current.field(key) else key
+                leftovers.append(f"{label}: {value}")
 
     if request.method == 'GET':
-        # 1. Clean Core Values
-        if hasattr(form, 'current_value'):
-            form.current_value.data = clean_number(abs(asset.value_estimated))
-        if hasattr(form, 'outstanding_balance'):
-            form.outstanding_balance.data = clean_number(abs(asset.value_estimated))
-            
-        # 2. Clean Attribute Values
-        if asset.attributes:
-            for field_name in asset.attributes:
-                if hasattr(form, field_name):
-                    val = asset.attributes[field_name]
-                    field = getattr(form, field_name)
-                    # Only clean decimals if the field is a FloatField
-                    if field.type == 'FloatField':
-                        field.data = clean_number(val)
-                    else:
-                        field.data = val
+        _prefill(form, holding, htype)
 
-    people = Person.query.all()
-    form.owner_id.choices = [(0, '--- No Individual Owner ---')] + [(p.id, p.name) for p in people]
-
+    old_value = holding.value_cents
     if form.validate_on_submit():
-        save_asset_from_form(asset, form)
-        db.session.commit()
-        flash(f'Updated {asset.name}', 'success')
-        return redirect(url_for('main.asset_details', id=asset.id))
-    
+        problems = _save_holding(holding, form, htype, leftovers)
+        if not problems:
+            if holding.value_cents != old_value:
+                db.session.add(Valuation(holding_id=holding.id, date=date.today(),
+                                         value_cents=holding.value_cents,
+                                         source="Manual update"))
+            db.session.commit()
+            flash(f'Updated {holding.name}', 'success')
+            return redirect(url_for('main.holding_details', id=holding.id))
+        db.session.rollback()
+        for p in problems:
+            flash(p, 'error')
     elif request.method == 'POST':
         flash('Update failed. Please correct the errors below.', 'error')
 
-    # PASS ASSET_ID for Edit Context
-    return render_template('manage_asset.html', form=form, title=f"Edit {asset.asset_type}", type_code=asset.asset_type, active_page='assets', asset_id=asset.id)
+    custom_rows = (holding.attributes or {}).get("fields", []) if htype.custom else []
+    if request.method == 'POST' and htype.custom:
+        custom_rows = _custom_rows()
+    return render_template('manage_holding.html', form=form, htype=htype,
+                           side_meta=SIDE_META[holding.side], holding=holding,
+                           other_types=types_for(holding.side), leftovers=leftovers,
+                           custom_rows=custom_rows,
+                           title=f"Edit {holding.name}", active_page='assets')
 
+
+@bp.route('/holding/delete/<int:id>')
 @bp.route('/asset/delete/<int:id>')
 @login_required
-def delete_asset(id):
-    asset = Asset.query.get_or_404(id)
+def delete_holding(id):
+    holding = Holding.query.get_or_404(id)
     try:
-        db.session.delete(asset)
+        db.session.delete(holding)
         db.session.commit()
-        flash(f'Deleted {asset.name}', 'success')
-    except Exception as e:
+        flash(f'Deleted {holding.name}', 'success')
+    except IntegrityError:
         db.session.rollback()
-        flash('Error deleting asset.', 'error')
-    return redirect(url_for('main.assets_view'))
+        flash('Could not delete: other records still point at this item.', 'error')
+    return redirect(url_for('main.holdings_view'))
 
-# --- APPRAISALS ---
 
+@bp.route('/holding/<int:id>/verify', methods=['POST'])
+@login_required
+def verify_holding(id):
+    holding = Holding.query.get_or_404(id)
+    holding.mark_verified()
+    db.session.commit()
+    flash(f'Marked {holding.name} as verified today.', 'success')
+    return redirect(request.referrer or url_for('main.holding_details', id=id))
+
+
+# --- VALUATIONS ----------------------------------------------------------------
+
+@bp.route('/holding/<int:id>/valuation', methods=['POST'])
 @bp.route('/asset/<int:id>/appraise', methods=['POST'])
 @login_required
-def add_appraisal(id):
-    asset = Asset.query.get_or_404(id)
-    form = AppraisalForm()
+def add_valuation(id):
+    holding = Holding.query.get_or_404(id)
+    form = ValuationForm()
     if form.validate_on_submit():
-        appraisal = Appraisal(
-            asset_id=asset.id,
-            date=form.date.data,
-            value=form.value.data,
-            source=form.source.data,
-            notes=form.notes.data
-        )
-        db.session.add(appraisal)
-        if form.date.data:
-            asset.value_estimated = form.value.data
-        try:
-            db.session.commit()
-            flash('Valuation added and asset updated.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error: {str(e)}', 'error')
-    return redirect(url_for('main.asset_details', id=id))
+        db.session.add(Valuation(holding_id=holding.id, date=form.date.data,
+                                 value_cents=form.value.data, source=form.source.data,
+                                 notes=form.notes.data))
+        db.session.flush()
+        _sync_value(holding)
+        db.session.commit()
+        flash('Valuation added.', 'success')
+    else:
+        flash('Valuation not saved: ' + '; '.join(
+            e for errs in form.errors.values() for e in errs), 'error')
+    return redirect(url_for('main.holding_details', id=id))
 
-@bp.route('/appraisal/<int:id>/edit', methods=['POST'])
+
+@bp.route('/valuation/<int:id>/edit', methods=['POST'])
 @login_required
-def edit_appraisal(id):
-    appraisal = Appraisal.query.get_or_404(id)
-    form = AppraisalForm()
+def edit_valuation(id):
+    valuation = Valuation.query.get_or_404(id)
+    form = ValuationForm()
     if form.validate_on_submit():
-        appraisal.date = form.date.data
-        appraisal.value = form.value.data
-        appraisal.source = form.source.data
-        appraisal.notes = form.notes.data
-        latest = Appraisal.query.filter_by(asset_id=appraisal.asset_id).order_by(Appraisal.date.desc()).first()
-        if latest and appraisal.id == latest.id:
-             appraisal.asset.value_estimated = form.value.data
-        if appraisal.source == "Purchase":
-            attrs = dict(appraisal.asset.attributes or {})
-            attrs['purchase_date'] = appraisal.date.isoformat()
-            attrs['purchase_price'] = appraisal.value
-            appraisal.asset.attributes = attrs
-        try:
-            db.session.commit()
-            flash('Valuation updated successfully.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error updating valuation: {str(e)}', 'error')
+        valuation.date = form.date.data
+        valuation.value_cents = form.value.data
+        valuation.source = form.source.data
+        valuation.notes = form.notes.data
+        holding = valuation.holding
+        if valuation.source == "Purchase" and holding.htype and holding.htype.field("purchase_date"):
+            attrs = dict(holding.attributes or {})
+            attrs['purchase_date'] = valuation.date.isoformat()
+            attrs['purchase_price'] = valuation.value_cents
+            holding.attributes = attrs
+        db.session.flush()
+        _sync_value(holding)
+        db.session.commit()
+        flash('Valuation updated.', 'success')
     else:
         flash('Invalid data submitted for valuation update.', 'error')
-    return redirect(url_for('main.asset_details', id=appraisal.asset_id))
+    return redirect(url_for('main.holding_details', id=valuation.holding_id))
 
-@bp.route('/appraisal/<int:id>/delete', methods=['POST'])
+
+@bp.route('/valuation/<int:id>/delete', methods=['POST'])
 @login_required
-def delete_appraisal(id):
-    appraisal = Appraisal.query.get_or_404(id)
-    asset_id = appraisal.asset_id
-    is_purchase = (appraisal.source == "Purchase")
-    try:
-        db.session.delete(appraisal)
-        if is_purchase:
-            asset = Asset.query.get(asset_id)
-            attrs = dict(asset.attributes or {})
-            attrs.pop('purchase_date', None)
-            attrs.pop('purchase_price', None)
-            asset.attributes = attrs
-        db.session.commit()
-        latest = Appraisal.query.filter_by(asset_id=asset_id).order_by(Appraisal.date.desc()).first()
-        asset = Asset.query.get(asset_id)
-        if latest:
-            asset.value_estimated = latest.value
-        db.session.commit()
-        flash('Valuation deleted.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error deleting valuation: {str(e)}', 'error')
-    return redirect(url_for('main.asset_details', id=asset_id))
+def delete_valuation(id):
+    valuation = Valuation.query.get_or_404(id)
+    holding = valuation.holding
+    if valuation.source == "Purchase":
+        attrs = dict(holding.attributes or {})
+        attrs.pop('purchase_date', None)
+        attrs.pop('purchase_price', None)
+        holding.attributes = attrs
+    db.session.delete(valuation)
+    db.session.flush()
+    _sync_value(holding)
+    db.session.commit()
+    flash('Valuation deleted.', 'success')
+    return redirect(url_for('main.holding_details', id=holding.id))
 
-# --- CONTACTS ---
+
+# --- BENEFICIARY SHARES --------------------------------------------------------
+
+def _designation_people(form):
+    form.person_id.choices = [(p.id, p.name) for p in Person.query.order_by(Person.name).all()]
+
+
+@bp.route('/holding/<int:id>/designation', methods=['POST'])
+@login_required
+def add_designation(id):
+    holding = Holding.query.get_or_404(id)
+    form = DesignationForm()
+    _designation_people(form)
+    if form.validate_on_submit():
+        db.session.add(BeneficiaryDesignation(
+            holding_id=holding.id, person_id=form.person_id.data,
+            percentage=form.percentage.data, kind=form.kind.data,
+            notes=form.notes.data or None))
+        try:
+            db.session.commit()
+            flash('Share added.', 'success')
+        except IntegrityError:
+            db.session.rollback()
+            flash('That person already has a share of this kind on this item - edit it instead.', 'error')
+    else:
+        flash('Share not saved: ' + '; '.join(
+            e for errs in form.errors.values() for e in errs), 'error')
+    return redirect(url_for('main.holding_details', id=id) + '#beneficiaries')
+
+
+@bp.route('/designation/<int:id>/edit', methods=['POST'])
+@login_required
+def edit_designation(id):
+    d = BeneficiaryDesignation.query.get_or_404(id)
+    form = DesignationForm()
+    _designation_people(form)
+    if form.validate_on_submit():
+        d.person_id = form.person_id.data
+        d.percentage = form.percentage.data
+        d.kind = form.kind.data
+        d.notes = form.notes.data or None
+        try:
+            db.session.commit()
+            flash('Share updated.', 'success')
+        except IntegrityError:
+            db.session.rollback()
+            flash('That person already has a share of this kind on this item.', 'error')
+    else:
+        flash('Share not saved: ' + '; '.join(
+            e for errs in form.errors.values() for e in errs), 'error')
+    return redirect(url_for('main.holding_details', id=d.holding_id) + '#beneficiaries')
+
+
+@bp.route('/designation/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_designation(id):
+    d = BeneficiaryDesignation.query.get_or_404(id)
+    holding_id = d.holding_id
+    db.session.delete(d)
+    db.session.commit()
+    flash('Share removed.', 'success')
+    return redirect(url_for('main.holding_details', id=holding_id) + '#beneficiaries')
+
+
+# --- CONTACTS --------------------------------------------------------------------
+
+def _person_from_form(person, form):
+    person.name = form.name.data
+    person.kind = form.kind.data
+    person.email = form.email.data
+    person.phone = form.phone.data
+    attrs = dict(person.attributes or {})
+    for key in ('address', 'notes'):
+        value = getattr(form, key).data
+        if value:
+            attrs[key] = value
+        else:
+            attrs.pop(key, None)
+    person.attributes = attrs
+    person.set_roles(form.roles.data)
+
 
 @bp.route('/contact/new', methods=['GET', 'POST'])
 @login_required
 def create_person():
     form = PersonForm()
     if request.method == 'GET' and request.args.get('role'):
-        form.role.data = request.args.get('role')
+        form.roles.data = [request.args.get('role')]
 
     if form.validate_on_submit():
         person = Person()
-        person.name = form.name.data
-        person.role = form.role.data
-        person.email = form.email.data
-        person.phone = form.phone.data
-        attrs = {}
-        if form.address.data: attrs['address'] = form.address.data
-        if form.notes.data: attrs['notes'] = form.notes.data
-        person.attributes = attrs
-        
+        _person_from_form(person, form)
         db.session.add(person)
-        try:
-            db.session.commit()
-            flash(f'Contact {person.name} added successfully.', 'success')
-            return redirect(url_for('main.contacts_view'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error creating contact: {str(e)}', 'error')
+        db.session.commit()
+        flash(f'Contact {person.name} added.', 'success')
+        return redirect(url_for('main.contacts_view'))
 
     return render_template('manage_person.html', form=form, title="Add Contact", active_page='contacts')
+
 
 @bp.route('/contact/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -275,155 +406,169 @@ def edit_person(id):
     form = PersonForm(obj=person)
 
     if request.method == 'GET':
-        if person.attributes:
-            form.address.data = person.attributes.get('address', '')
-            form.notes.data = person.attributes.get('notes', '')
+        form.roles.data = person.role_codes
+        form.address.data = (person.attributes or {}).get('address', '')
+        form.notes.data = (person.attributes or {}).get('notes', '')
 
     if form.validate_on_submit():
-        person.name = form.name.data
-        person.role = form.role.data
-        person.email = form.email.data
-        person.phone = form.phone.data
-        
-        attrs = {}
-        if form.address.data: attrs['address'] = form.address.data
-        if form.notes.data: attrs['notes'] = form.notes.data
-        person.attributes = attrs
+        _person_from_form(person, form)
+        db.session.commit()
+        flash(f'Updated contact {person.name}.', 'success')
+        return redirect(url_for('main.contacts_view'))
 
-        try:
-            db.session.commit()
-            flash(f'Updated contact {person.name}.', 'success')
-            return redirect(url_for('main.contacts_view'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error updating contact: {str(e)}', 'error')
+    return render_template('manage_person.html', form=form, person=person,
+                           title="Edit Contact", active_page='contacts')
 
-    return render_template('manage_person.html', form=form, title="Edit Contact", active_page='contacts')
 
 @bp.route('/contact/delete/<int:id>')
 @login_required
 def delete_person(id):
     person = Person.query.get_or_404(id)
+    if person.designations:
+        flash(f'{person.name} still has beneficiary shares on '
+              f'{len(person.designations)} item(s). Reassign or remove those first.', 'error')
+        return redirect(url_for('main.contacts_view'))
     try:
         db.session.delete(person)
         db.session.commit()
         flash(f'Deleted contact {person.name}.', 'success')
-    except Exception as e:
+    except IntegrityError:
         db.session.rollback()
-        flash('Error deleting contact. Check if they are linked to assets.', 'error')
+        flash('Could not delete: this contact is still assigned to an item or entity.', 'error')
     return redirect(url_for('main.contacts_view'))
 
-# --- PHASE 5: SUB-ITEMS (Structures, Pins, Bills, Vendors) ---
 
-@bp.route('/asset/<int:id>/<string:subitem_type>/new', methods=['GET', 'POST'])
+@bp.route('/contact/<int:id>/verify', methods=['POST'])
+@login_required
+def verify_person(id):
+    person = Person.query.get_or_404(id)
+    person.mark_verified()
+    db.session.commit()
+    flash(f'Marked {person.name} as verified today.', 'success')
+    return redirect(request.referrer or url_for('main.contacts_view'))
+
+
+# --- SUB-ITEMS (offered on every holding) -----------------------------------------
+
+SUBITEMS = {
+    'structure': {'form': StructureForm, 'model': PropertyStructure,
+                  'title': 'Add Structure / Accommodation'},
+    'location': {'form': LocationPointForm, 'model': LocationPoint,
+                 'title': 'Drop Location Pin'},
+    'bill': {'form': RecurringBillForm, 'model': RecurringBill,
+             'title': 'Add Recurring Bill'},
+    'vendor': {'form': HoldingVendorForm, 'model': HoldingVendor,
+               'title': 'Assign Contact'},
+}
+
+
+@bp.route('/holding/<int:id>/<string:subitem_type>/new', methods=['GET', 'POST'])
 @login_required
 def manage_subitem(id, subitem_type):
-    asset = Asset.query.get_or_404(id)
-    
-    # Logic Dispatcher
-    config = {
-        'structure': {
-            'form': StructureForm, 'model': PropertyStructure, 'title': 'Add Structure / Accommodation', 'is_vendor': False
-        },
-        'location': {
-            'form': LocationPointForm, 'model': LocationPoint, 'title': 'Drop Location Pin', 'is_vendor': False
-        },
-        'bill': {
-            'form': RecurringBillForm, 'model': RecurringBill, 'title': 'Add Recurring Bill', 'is_vendor': False
-        },
-        'vendor': {
-            'form': AssetVendorForm, 'model': AssetVendor, 'title': 'Assign Vendor', 'is_vendor': True
-        }
-    }
-    
-    if subitem_type not in config:
+    holding = Holding.query.get_or_404(id)
+    cfg = SUBITEMS.get(subitem_type)
+    if cfg is None:
         flash('Unknown item type.', 'error')
-        return redirect(url_for('main.asset_details', id=id))
-        
-    cfg = config[subitem_type]
+        return redirect(url_for('main.holding_details', id=id))
+
     form = cfg['form']()
-    
-    # Special Handling for Vendors (Populate SelectField)
-    if cfg['is_vendor']:
+    if subitem_type == 'vendor':
         people = Person.query.order_by(Person.name).all()
-        form.person_id.choices = [(p.id, f"{p.name} ({p.role})") for p in people]
+        form.person_id.choices = [
+            (p.id, f"{p.name} ({', '.join(p.role_labels)})" if p.roles else p.name)
+            for p in people]
 
     if form.validate_on_submit():
         item = cfg['model']()
-        item.asset_id = asset.id
-        form.populate_obj(item) # Auto-map form fields to model
-        
+        item.holding_id = holding.id
+        form.populate_obj(item)
+        if subitem_type == 'bill' and item.amount_cents is None:
+            item.amount_cents = 0
         db.session.add(item)
-        try:
-            db.session.commit()
-            flash(f'{cfg["title"]} saved successfully.', 'success')
-            return redirect(url_for('main.asset_details', id=id))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error saving item: {str(e)}', 'error')
-            
-    return render_template('manage_subitem.html', form=form, title=cfg['title'], asset=asset, subitem_type=subitem_type, active_page='assets')
+        db.session.commit()
+        flash(f'{cfg["title"]} saved.', 'success')
+        return redirect(url_for('main.holding_details', id=id))
 
-@bp.route('/asset/<int:asset_id>/<string:subitem_type>/<int:item_id>/delete')
+    return render_template('manage_subitem.html', form=form, title=cfg['title'],
+                           holding=holding, subitem_type=subitem_type, active_page='assets')
+
+
+@bp.route('/holding/<int:holding_id>/<string:subitem_type>/<int:item_id>/delete')
 @login_required
-def delete_subitem(asset_id, subitem_type, item_id):
-    # Mapping
-    models = {
-        'structure': PropertyStructure,
-        'location': LocationPoint,
-        'bill': RecurringBill,
-        'vendor': AssetVendor
-    }
-    
-    if subitem_type in models:
-        item = models[subitem_type].query.get_or_404(item_id)
-        if item.asset_id == asset_id:
+def delete_subitem(holding_id, subitem_type, item_id):
+    cfg = SUBITEMS.get(subitem_type)
+    if cfg:
+        item = cfg['model'].query.get_or_404(item_id)
+        if item.holding_id == holding_id:
             db.session.delete(item)
             db.session.commit()
             flash('Item removed.', 'success')
-    
-    return redirect(url_for('main.asset_details', id=asset_id))
+    return redirect(url_for('main.holding_details', id=holding_id))
 
-# --- PHASE 6: TRUST PROFILE EDIT ---
+
+# --- THE TRUST (root entity) AND ITS ADD-ONS ----------------------------------------
+
 @bp.route('/trust/edit', methods=['GET', 'POST'])
 @login_required
 def edit_trust_profile():
-    profile = TrustProfile.query.first()
-    if not profile:
-        profile = TrustProfile(name="The Family Trust")
-        db.session.add(profile)
-        db.session.commit()
-        
-    form = TrustProfileForm(obj=profile)
-    
+    root = get_root_entity()
+    form = TrustProfileForm(obj=root)
+
     if form.validate_on_submit():
-        form.populate_obj(profile)
+        form.populate_obj(root)
         db.session.commit()
         flash('Trust details updated.', 'success')
         return redirect(url_for('main.details_view'))
-        
+
     return render_template('manage_trust.html', form=form, title="Edit Trust Details", active_page='details')
 
 
-# --- HELPER ---
-def save_asset_from_form(asset, form):
-    asset.name = form.name.data
-    asset.is_in_trust = form.is_in_trust.data
-    owner_id = form.owner_id.data
-    asset.owner_id = owner_id if owner_id != 0 else None
-    
-    val = 0.0
-    if hasattr(form, 'outstanding_balance'):
-        val = -(form.outstanding_balance.data or 0.0)
-    elif hasattr(form, 'current_value'):
-        val = form.current_value.data or 0.0
-    asset.value_estimated = val
+def _entity_people(form):
+    form.person_id.choices = [(0, '—')] + [
+        (p.id, p.name) for p in Person.query.order_by(Person.name).all()]
 
-    core_columns = ['name', 'is_in_trust', 'owner_id', 'csrf_token', 'submit', 'asset_type', 'current_value', 'outstanding_balance']
-    
-    attrs = {}
-    for field in form:
-        if field.name not in core_columns:
-            attrs[field.name] = field.data
-            
-    asset.attributes = attrs
+
+@bp.route('/entity/new', methods=['GET', 'POST'])
+@bp.route('/entity/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def manage_entity(id=None):
+    root = get_root_entity()
+    entity = Entity.query.get_or_404(id) if id else None
+    if entity is not None and entity.is_root:
+        return redirect(url_for('manage.edit_trust_profile'))
+    form = EntityForm(obj=entity)
+    _entity_people(form)
+    if request.method == 'GET' and entity is not None:
+        form.person_id.data = entity.person_id or 0
+
+    if form.validate_on_submit():
+        if entity is None:
+            entity = Entity(is_root=False, parent_id=root.id)
+            db.session.add(entity)
+        entity.kind = form.kind.data
+        entity.name = form.name.data
+        entity.person_id = (form.person_id.data or None) if form.kind.data == 'individual' else None
+        entity.date_established = form.date_established.data
+        entity.notes = form.notes.data or None
+        db.session.commit()
+        flash(f'Saved {entity.name}.', 'success')
+        return redirect(url_for('main.details_view'))
+
+    return render_template('manage_entity.html', form=form, entity=entity, root=root,
+                           title=f"Edit {entity.name}" if entity else "Add an entity under the trust",
+                           active_page='details')
+
+
+@bp.route('/entity/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_entity(id):
+    entity = Entity.query.get_or_404(id)
+    if entity.is_root:
+        flash('The trust is the root of the estate and cannot be deleted.', 'error')
+    elif entity.holdings:
+        flash(f'{entity.name} still holds {len(entity.holdings)} item(s). Move them first.', 'error')
+    else:
+        db.session.delete(entity)
+        db.session.commit()
+        flash(f'Removed {entity.name}.', 'success')
+    return redirect(url_for('main.details_view'))

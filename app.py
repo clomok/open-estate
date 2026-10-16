@@ -27,16 +27,24 @@ def create_app(config_class=Config):
         }
 
     # --- CUSTOM FILTERS ---
+    # Money is stored as int cents; these are the only places it becomes text.
+    from src.money import format_cents, cents_to_input
+    from src.holding_types import display_value, mask
+
     @app.template_filter('currency')
-    def currency_filter(value):
-        """Format currency: $1,000 or $1,000.50 (no decimals if integer)."""
+    def currency_filter(cents):
+        """Cents -> "$1,000" or "$1,000.50" (no decimals when they are zero)."""
         try:
-            val = float(value)
-            if val.is_integer():
-                return "${:,.0f}".format(val)
-            return "${:,.2f}".format(val)
+            return format_cents(cents)
         except (ValueError, TypeError):
-            return value
+            return cents
+
+    app.jinja_env.filters['money_input'] = cents_to_input
+    # Small POST forms (verify, remove) that are not FlaskForms still carry a token.
+    from flask_wtf.csrf import generate_csrf
+    app.jinja_env.globals['csrf_token'] = generate_csrf
+    app.jinja_env.filters['mask'] = mask
+    app.jinja_env.globals['display_value'] = display_value
 
     # --- BLUEPRINT REGISTRATION ---
     from src.routes.auth import bp as auth_bp
