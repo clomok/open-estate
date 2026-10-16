@@ -18,7 +18,7 @@
 
     {% for side in ['asset', 'liability', 'equity'] %}
     {% set meta = side_meta[side] %}
-    <h2 class="section-title is-{{ side }}">
+    <h2 class="section-title is-{{ side }}" id="{{ meta.label|lower }}">
         <span>{{ meta.label }}</span>
         <span class="figure">{{ totals[side] | currency }}</span>
     </h2>

@@ -1,202 +1,236 @@
 {% extends 'base.html' %}
+{% from '_rows.html' import row_card %}
+
+{# One holding as a dossier: a masthead, what needs attention, four facts, then
+   one scroll of sections in the order a successor trustee asks about it.
+   The section ids are link targets elsewhere (feeds.py, ?next=…#events):
+   keep #beneficiaries, #bills and #events. #}
 
 {% block title %}{{ holding.name }} · Open Estate{% endblock %}
 {% block content %}
 {% set side = holding.side %}
 {% set attrs = holding.attributes or {} %}
-<div class="page" style="max-width: 1200px;">
+{% set here = url_for('main.holding_details', id=holding.id) %}
+{% set inherits = side != 'liability' %}
+{% set designations = holding.beneficiary_designations %}
+<div class="page page-wide holding-page">
 
-    <a href="{{ url_for('main.holdings_view') }}" class="oe-back">← Back to Holdings</a>
-
-    <div class="holding-head">
-        <div>
+    <header class="holding-mast">
+        <div class="mast-main">
+            <nav class="crumbs" aria-label="Breadcrumb">
+                <a href="{{ url_for('main.holdings_view') }}">Holdings</a>
+                <span aria-hidden="true">›</span>
+                <a href="{{ url_for('main.holdings_view') }}#{{ holding.side_meta.label|lower }}">{{ holding.side_meta.label }}</a>
+            </nav>
             <span class="eyebrow">{{ holding.icon }} {{ holding.side_meta.singular }} · {{ holding.type_label }}</span>
             <h1>{{ holding.name }}</h1>
-            <div class="row" style="gap: 0.5rem;">
+            <div class="mast-chips">
                 {% if holding.in_trust %}
                     <span class="chip badge-trust">In {{ root.name }}</span>
                 {% else %}
                     <span class="chip chip-plum">{{ holding.entity.name }} · {{ holding.entity.kind_label }}</span>
                 {% endif %}
-                {% if holding.owner %}<span class="muted small">Owner: {{ holding.owner.name }}</span>{% endif %}
+                {% if holding.owner %}<span class="chip chip-stone">Owner: {{ holding.owner.name }}</span>{% endif %}
+                {% if holding.secured_by %}<a class="chip chip-gold chip-link" href="{{ url_for('main.holding_details', id=holding.secured_by.id) }}">Secured by {{ holding.secured_by.name }}</a>{% endif %}
+                {% for debt in holding.secures %}<a class="chip chip-oxblood chip-link" href="{{ url_for('main.holding_details', id=debt.id) }}">Secures {{ debt.name }}</a>{% endfor %}
             </div>
         </div>
-        <div class="holding-value is-{{ side }}">
-            <div class="figure-xl">{{ holding.value_cents | currency }}</div>
-            <div class="muted small">{{ holding.side_meta.value_label }}{% if side == 'equity' and holding.ownership_pct is not none %} · {{ '%g' % holding.ownership_pct }}% owned{% endif %}</div>
-            <div class="verify-row">
+
+        <div class="mast-side is-{{ side }}">
+            <div class="mast-value">
+                <div class="figure-xl">{{ holding.value_cents | currency }}</div>
+                <div class="mast-value-label">{{ holding.side_meta.value_label }}{% if side == 'equity' and holding.ownership_pct is not none %} · {{ '%g' % holding.ownership_pct }}% owned{% endif %}</div>
+            </div>
+            {% if stale %}
+                <span class="verify-pill is-stale">! Stale since {{ holding.last_verified or 'never verified' }}</span>
+            {% elif holding.last_verified %}
+                <span class="verify-pill is-ok">● Verified {{ holding.last_verified }}</span>
+            {% else %}
+                <span class="verify-pill is-never">○ Never verified</span>
+            {% endif %}
+            <div class="mast-actions">
+                <a href="{{ url_for('manage.edit_holding', id=holding.id) }}" class="btn">✎ Edit</a>
                 <form method="POST" action="{{ url_for('manage.verify_holding', id=holding.id) }}">
-                    {{ form.hidden_tag() }}
-                    <button type="submit" class="btn btn-sm ev-btn-done" style="font-size: 0.85rem;" title="Confirm the details on this page are still true">✓ Mark verified</button>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-verify" title="Confirm the details on this page are still true">✓ Mark verified</button>
                 </form>
-                <a href="{{ url_for('manage.edit_holding', id=holding.id) }}" class="btn btn-sm">✎ Edit</a>
-            </div>
-            <div class="verified-note">
-                {% if holding.last_verified %}Last verified {{ holding.last_verified }}{% else %}Never verified{% endif %}
+                <div class="mast-menu">
+                    <button type="button" class="btn mast-menu-btn" onclick="toggleDropdown(event, 'holding-menu')" aria-label="More actions" aria-haspopup="true">&#8942;</button>
+                    <div id="holding-menu" class="menu-dropdown">
+                        <form method="POST" action="{{ url_for('manage.delete_holding', id=holding.id) }}"
+                              onsubmit="return confirm('Delete {{ holding.name|e }}? Its valuations, bills and shares go with it.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="menu-item danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div class="tabs-header">
-        <button class="tab-btn active" onclick="openTab(event, 'tab-overview')">Overview</button>
-        {% if side != 'liability' %}
-        <button class="tab-btn" onclick="openTab(event, 'tab-beneficiaries')">Beneficiaries ({{ holding.beneficiary_designations|length }})</button>
+    {% if attention %}
+    <section class="attention" id="attention" aria-label="Needs attention">
+        {% for r in attention %}{{ row_card(r, today, here, show_phase=False) }}{% endfor %}
+        {% if attention_more %}
+        <a class="attention-more" href="{{ url_for('main.now') }}">{{ attention_more }} more on the Now page →</a>
         {% endif %}
-        <button class="tab-btn" onclick="openTab(event, 'tab-events')">Events ({{ holding.events|length }})</button>
-        <button class="tab-btn" onclick="openTab(event, 'tab-bills')">Bills ({{ holding.bills|length }})</button>
-        <button class="tab-btn" onclick="openTab(event, 'tab-team')">Team ({{ holding.vendors|length }})</button>
-        <button class="tab-btn" onclick="openTab(event, 'tab-systems')">Pins ({{ holding.location_points|length }})</button>
-        <button class="tab-btn" onclick="openTab(event, 'tab-structures')">Structures ({{ holding.structures|length }})</button>
+    </section>
+    {% endif %}
+
+    <div class="facts-band">
+        <a class="summary-card fact-tile fact-value" href="#value">
+            <span class="summary-label">Value</span>
+            <div class="summary-value">{{ holding.value_cents | currency }}</div>
+            <div class="summary-note">
+                {% if latest_valuation and prev_valuation %}
+                    {% set delta = latest_valuation.value_cents - prev_valuation.value_cents %}
+                    <span class="{% if delta >= 0 %}is-asset{% else %}is-liability{% endif %}">{% if delta >= 0 %}▲{% else %}▼{% endif %} {{ (delta|abs) | currency }}</span>
+                    since {{ prev_valuation.date.isoformat() }}
+                {% elif latest_valuation %}Valued {{ latest_valuation.date.isoformat() }}
+                {% else %}No history yet{% endif %}
+            </div>
+        </a>
+        {% if inherits %}
+        {% set complete = share_summary and share_summary.values()|reject('equalto', 100)|list|length == 0 %}
+        <a class="summary-card fact-tile" href="#beneficiaries">
+            <span class="summary-label">Who inherits</span>
+            {% if designations %}
+            <div class="fact-line">{{ designations|length }} named</div>
+            <div class="summary-note {% if complete %}is-asset{% else %}is-liability{% endif %}">
+                {% for kind, total in share_summary.items() %}{{ '%g' % total }}%{% if not loop.last %} / {% endif %}{% endfor %} assigned {% if complete %}✓{% endif %}
+            </div>
+            {% else %}
+            <div class="fact-line is-gap">No one named</div>
+            {% endif %}
+        </a>
+        {% endif %}
+        <a class="summary-card fact-tile" href="#bills">
+            <span class="summary-label">Next due</span>
+            {% if next_bill %}
+            <div class="fact-line">{{ next_bill.name }}</div>
+            <div class="summary-note">{{ next_bill.next_due_date | relday(today) }}{% if next_bill.amount_cents %} · {{ next_bill.amount_cents | currency }}{% endif %}</div>
+            {% else %}
+            <div class="fact-line muted">No bills</div>
+            {% endif %}
+        </a>
+        <a class="summary-card fact-tile" href="#team">
+            <span class="summary-label">Looked after by</span>
+            {% if holding.vendors %}
+            {% set first = holding.vendors[0] %}
+            <div class="fact-line">{{ first.provider.name }}</div>
+            <div class="summary-note">{{ first.role }}{% if holding.vendors|length > 1 %} · and {{ holding.vendors|length - 1 }} more{% endif %}</div>
+            {% else %}
+            <div class="fact-line muted">No one assigned</div>
+            {% endif %}
+        </a>
     </div>
 
-    <div id="tab-overview" class="tab-content">
-        <div class="grid-2-sidebar">
-            <div class="stack">
-                <div class="summary-card">
-                    <h3>Value history</h3>
-                    <div class="chart-box" style="height: 300px; margin-bottom: 0;">
-                        <canvas id="valueChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="summary-card card-flush">
-                    <h3 style="padding: 1.2rem 1.5rem 0;">Valuation log</h3>
-                    <div class="table-wrap">
-                    <table class="data-table" style="border: none; box-shadow: none; border-radius: 0;">
-                        <thead>
-                            <tr><th>Date</th><th>Value</th><th>Source</th><th>Notes</th><th style="width: 50px;"></th></tr>
-                        </thead>
-                        <tbody>
-                            {% for record in holding.valuations %}
-                            <tr>
-                                <td class="nowrap">{{ record.date.isoformat() }}</td>
-                                <td class="figure" style="font-weight: 600;">{{ record.value_cents | currency }}</td>
-                                <td>{{ record.source or '' }}</td>
-                                <td class="muted small">{{ record.notes or '' }}</td>
-                                <td class="right">
-                                    <button type="button" class="icon-btn"
-                                        data-id="{{ record.id }}" data-date="{{ record.date.isoformat() }}"
-                                        data-value="{{ record.value_cents | money_input }}"
-                                        data-source="{{ record.source or '' }}" data-notes="{{ record.notes or '' }}"
-                                        onclick="openEditModal(this.dataset)" title="Edit">✎</button>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr><td colspan="5" class="empty" style="text-align: center;">No historical records yet.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="stack">
-                <div class="summary-card card-tint-royal">
-                    <h3>Update value</h3>
-                    <form method="POST" action="{{ url_for('manage.add_valuation', id=holding.id) }}">
-                        {{ form.hidden_tag() }}
-                        <div class="oe-field">{{ form.date() }}</div>
-                        <div class="oe-field">{{ form.value(placeholder="Value $", inputmode="decimal") }}</div>
-                        <div class="oe-field">{{ form.source(placeholder="Source") }}</div>
-                        <div class="oe-field">{{ form.notes(placeholder="Notes…", rows=2) }}</div>
-                        <button type="submit" class="btn-primary btn-block">Record valuation</button>
-                    </form>
-                </div>
-
-                <div class="summary-card">
-                    <div class="row-between">
-                        <h3>Details</h3>
-                        {% if htype and (htype.custom or htype.fields|selectattr('is_sensitive')|list) %}
-                        <button type="button" onclick="toggleSecrets(this)" class="text-btn royal">Show sensitive</button>
-                        {% endif %}
-                    </div>
-
-                    {% if holding.secured_by %}
-                    <div class="detail-row"><div class="detail-label">Secured by</div>
-                        <div><a href="{{ url_for('main.holding_details', id=holding.secured_by.id) }}">{{ holding.secured_by.name }}</a></div></div>
-                    {% endif %}
-                    {% for debt in holding.secures %}
-                    <div class="detail-row"><div class="detail-label">Secures</div>
-                        <div><a href="{{ url_for('main.holding_details', id=debt.id) }}">{{ debt.name }}</a> ({{ debt.value_cents | currency }} owed)</div></div>
-                    {% endfor %}
-
-                    {% if htype and htype.custom %}
-                        {% for row in attrs.get('fields', []) %}
-                        <div class="detail-row"><div class="detail-label">{{ row.name }}</div><div>{{ row.value }}</div></div>
-                        {% endfor %}
-                    {% elif htype %}
-                        {% for f in htype.fields if attrs.get(f.name) not in (none, '') %}
-                        <div class="detail-row">
-                            <div class="detail-label">{{ f.label }}{% if f.is_sensitive %} 🔒{% endif %}</div>
-                            {% if f.is_sensitive %}
-                            <div><span class="masked">{{ attrs[f.name] | mask }}</span><span class="secret" style="display: none;">{{ display_value(f, attrs[f.name]) }}</span></div>
-                            {% else %}
-                            <div class="pre">{{ display_value(f, attrs[f.name]) }}</div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-
-                    {% if holding.notes %}
-                    <div class="detail-row"><div class="detail-label">Notes</div><div class="pre">{{ holding.notes }}</div></div>
-                    {% endif %}
-                </div>
-            </div>
+    <nav class="jump-bar" aria-label="Sections">
+        <div class="jump-track">
+            <a class="jump-chip" href="#details">Details</a>
+            {% if inherits %}<a class="jump-chip" href="#beneficiaries">Who inherits <span class="jump-count">{{ designations|length }}</span></a>{% endif %}
+            <a class="jump-chip" href="#value">Value <span class="jump-count">{{ holding.valuations|length }}</span></a>
+            <a class="jump-chip" href="#bills">Bills <span class="jump-count">{{ holding.bills|length }}</span></a>
+            <a class="jump-chip" href="#team">People <span class="jump-count">{{ holding.vendors|length }}</span></a>
+            {% if show_place %}<a class="jump-chip" href="#place">Place <span class="jump-count">{{ holding.location_points|length + holding.structures|length }}</span></a>{% endif %}
+            <a class="jump-chip" href="#events">Events <span class="jump-count">{{ holding.events|length }}</span></a>
         </div>
-    </div>
+    </nav>
 
-    {% if side != 'liability' %}
-    <div id="tab-beneficiaries" class="tab-content" style="display:none;">
-        <h3>Who inherits this</h3>
-        {% set totals = holding.share_totals() %}
-        <div class="table-wrap" style="margin-bottom: 1.25rem;">
-        <table class="data-table">
+    {# --- Details: the facts someone will ask for ------------------------- #}
+    <section class="hsec" id="details">
+        <div class="hsec-head">
+            <h2>Details</h2>
+            {% if htype and (htype.custom or htype.fields|selectattr('is_sensitive')|list) %}
+            <button type="button" onclick="toggleSecrets(this)" class="text-btn royal">Show sensitive</button>
+            {% endif %}
+        </div>
+        <div class="summary-card detail-grid">
+            {% if holding.secured_by %}
+            <div class="detail-row"><div class="detail-label">Secured by</div>
+                <div><a href="{{ url_for('main.holding_details', id=holding.secured_by.id) }}">{{ holding.secured_by.name }}</a></div></div>
+            {% endif %}
+            {% for debt in holding.secures %}
+            <div class="detail-row"><div class="detail-label">Secures</div>
+                <div><a href="{{ url_for('main.holding_details', id=debt.id) }}">{{ debt.name }}</a> ({{ debt.value_cents | currency }} owed)</div></div>
+            {% endfor %}
+
+            {% set shown = namespace(n=0) %}
+            {% if htype and htype.custom %}
+                {% for row in attrs.get('fields', []) %}
+                {% set shown.n = shown.n + 1 %}
+                <div class="detail-row"><div class="detail-label">{{ row.name }}</div><div class="pre">{{ row.value }}</div></div>
+                {% endfor %}
+            {% elif htype %}
+                {% for f in htype.fields if attrs.get(f.name) not in (none, '') %}
+                {% set shown.n = shown.n + 1 %}
+                <div class="detail-row">
+                    <div class="detail-label">{{ f.label }}{% if f.is_sensitive %} 🔒{% endif %}</div>
+                    {% if f.is_sensitive %}
+                    <div><span class="masked">{{ attrs[f.name] | mask }}</span><span class="secret">{{ display_value(f, attrs[f.name]) }}</span></div>
+                    {% else %}
+                    <div class="pre">{{ display_value(f, attrs[f.name]) }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if holding.notes %}
+            <div class="detail-row span-all"><div class="detail-label">Notes</div><div class="pre">{{ holding.notes }}</div></div>
+            {% endif %}
+            {% if not shown.n and not holding.notes and not holding.secured_by and not holding.secures %}
+            <p class="empty span-all">No details yet. <a href="{{ url_for('manage.edit_holding', id=holding.id) }}">Add them</a>.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    {# --- Who inherits (assets and equity) -------------------------------- #}
+    {% if inherits %}
+    <section class="hsec" id="beneficiaries">
+        <div class="hsec-head"><h2>Who inherits this</h2></div>
+        {% if designations %}
+        <div class="table-wrap">
+        <table class="data-table is-stacking">
             <thead><tr><th>Beneficiary</th><th>Share</th><th>Designated by</th><th>Notes</th><th></th></tr></thead>
             <tbody>
-                {% for d in holding.beneficiary_designations %}
+                {% for d in designations %}
                 {% set fid = 'desig-' ~ d.id %}
                 <tr>
-                    <td>
+                    <td data-label="Beneficiary">
                         <form id="{{ fid }}" method="POST" action="{{ url_for('manage.edit_designation', id=d.id) }}">{{ designation_form.hidden_tag() }}</form>
-                        <select name="person_id" form="{{ fid }}">
+                        <select name="person_id" form="{{ fid }}" aria-label="Beneficiary">
                             {% for p in people %}<option value="{{ p.id }}" {% if p.id == d.person_id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td class="nowrap"><input name="percentage" form="{{ fid }}" type="number" step="0.01" min="0.01" max="100" value="{{ '%g' % d.percentage }}" class="w-sm"> %</td>
-                    <td>
-                        <select name="kind" form="{{ fid }}">
+                    <td data-label="Share" class="nowrap"><input name="percentage" form="{{ fid }}" type="number" step="0.01" min="0.01" max="100" value="{{ '%g' % d.percentage }}" class="w-sm" aria-label="Share %"> %</td>
+                    <td data-label="Designated by">
+                        <select name="kind" form="{{ fid }}" aria-label="Designated by">
                             {% for value, label in kind_labels.items() %}<option value="{{ value }}" {% if value == d.kind %}selected{% endif %}>{{ label }}</option>{% endfor %}
                         </select>
                     </td>
-                    <td><input name="notes" form="{{ fid }}" value="{{ d.notes or '' }}" class="w-full"></td>
-                    <td class="nowrap right">
+                    <td data-label="Notes"><input name="notes" form="{{ fid }}" value="{{ d.notes or '' }}" class="w-full" aria-label="Notes"></td>
+                    <td class="cell-actions nowrap right">
                         <button type="submit" form="{{ fid }}" class="btn-primary btn-sm">Save</button>
                         <button type="submit" form="{{ fid }}" formaction="{{ url_for('manage.delete_designation', id=d.id) }}" formnovalidate
-                                onclick="return confirm('Remove this share?')" class="btn btn-sm" style="color: var(--oxblood);">Remove</button>
+                                onclick="return confirm('Remove this share?')" class="btn btn-sm btn-remove">Remove</button>
                     </td>
                 </tr>
-                {% else %}
-                <tr><td colspan="5" class="empty" style="text-align: center;">No beneficiaries named for this item yet.</td></tr>
                 {% endfor %}
             </tbody>
-            {% if totals %}
-            <tfoot>
-                {% for kind, total in totals.items() %}
-                <tr>
-                    <td>Total · {{ kind_labels[kind] }}</td>
-                    <td class="{% if total == 100 %}is-asset{% else %}is-liability{% endif %}">{{ '%g' % total }}%</td>
-                    <td colspan="3" class="{% if total == 100 %}is-asset{% else %}is-liability{% endif %}" style="font-weight: 400;">
-                        {% if total == 100 %}Complete{% elif total < 100 %}{{ '%g' % (100 - total) }}% not yet assigned{% else %}Over-assigned by {{ '%g' % (total - 100) }}%{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tfoot>
-            {% endif %}
         </table>
         </div>
+        {% for kind, total in share_summary.items() %}
+        <p class="share-total {% if total == 100 %}is-asset{% else %}is-liability{% endif %}">
+            {{ kind_labels[kind] }} · {{ '%g' % total }}% ·
+            {% if total == 100 %}Complete{% elif total < 100 %}{{ '%g' % (100 - total) }}% not yet assigned{% else %}Over-assigned by {{ '%g' % (total - 100) }}%{% endif %}
+        </p>
+        {% endfor %}
+        {% else %}
+        <p class="empty">No one named for this item yet.</p>
+        {% endif %}
 
-        <div class="summary-card card-tint-laurel">
-            <h4 style="margin-top: 0;">Add a share</h4>
+        <div class="summary-card card-tint-laurel add-card">
+            <h4>Add a share</h4>
             {% if people %}
             <form method="POST" action="{{ url_for('manage.add_designation', id=holding.id) }}" class="share-form">
                 {{ designation_form.hidden_tag() }}
@@ -207,72 +241,192 @@
                 <button type="submit" class="btn-primary">Add</button>
             </form>
             {% else %}
-            <p style="margin: 0;">Add the people first on the <a href="{{ url_for('main.contacts_view') }}">Contacts</a> page.</p>
+            <p class="flush">Add the people first on the <a href="{{ url_for('main.contacts_view') }}">Contacts</a> page.</p>
             {% endif %}
         </div>
-    </div>
+    </section>
     {% endif %}
 
-    <div id="tab-structures" class="tab-content" style="display:none;">
-        <div class="row-between">
-            <h3>Structures &amp; accommodations</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='structure') }}" class="btn-primary btn-sm">+ Add structure</a>
-        </div>
-        <div class="grid-3">
-            {% for item in holding.structures %}
-            <div class="summary-card">
-                <div style="font-family: var(--serif); font-weight: 600; font-size: 1.1rem;">{{ item.name }}</div>
-                <div class="small muted" style="margin-bottom: 0.5rem;">{{ item.structure_type or '' }}</div>
-                <p>{{ item.description or '' }}</p>
-                {% if item.date_last_maintained %}
-                <div class="small is-asset">Last maintained: {{ item.date_last_maintained }}</div>
-                {% endif %}
-                <div class="right" style="margin-top: 1rem; border-top: 1px solid var(--parchment-deep); padding-top: 0.5rem;">
-                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" class="inline-form" onsubmit="return confirm('Delete?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Remove</button></form>
-                </div>
+    {# --- Value ----------------------------------------------------------- #}
+    <section class="hsec" id="value">
+        <div class="hsec-head"><h2>Value</h2></div>
+        <div class="value-grid">
+            <div class="summary-card value-chart">
+                <div class="chart-box chart-holding"><canvas id="valueChart"></canvas></div>
             </div>
-            {% else %}
-            <p class="empty">No structures recorded.</p>
-            {% endfor %}
+            <details class="fold value-form summary-card card-tint-royal" id="valuation-fold">
+                <summary>+ Record valuation</summary>
+                <form method="POST" action="{{ url_for('manage.add_valuation', id=holding.id) }}">
+                    {{ form.hidden_tag() }}
+                    <div class="oe-field">{{ form.date(**{'aria-label': 'Date'}) }}</div>
+                    <div class="oe-field">{{ form.value(placeholder="Value $", inputmode="decimal", **{'aria-label': 'Value'}) }}</div>
+                    <div class="oe-field">{{ form.source(placeholder="Source", **{'aria-label': 'Source'}) }}</div>
+                    <div class="oe-field">{{ form.notes(placeholder="Notes…", rows=2, **{'aria-label': 'Notes'}) }}</div>
+                    <button type="submit" class="btn-primary btn-block">Record valuation</button>
+                </form>
+            </details>
         </div>
-    </div>
-
-    <div id="tab-systems" class="tab-content" style="display:none;">
-        <div class="row-between">
-            <h3>Location pins</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='location') }}" class="btn-primary btn-sm">📍 Drop pin</a>
-        </div>
+        {% if holding.valuations %}
         <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>Label</th><th>Coordinates</th><th>Description</th><th>Map</th><th></th></tr></thead>
+        <table class="data-table is-stacking">
+            <thead><tr><th>Date</th><th>Value</th><th>Source</th><th>Notes</th><th class="col-icon"></th></tr></thead>
             <tbody>
-                {% for pin in holding.location_points %}
+                {% for record in holding.valuations %}
                 <tr>
-                    <td style="font-weight: 600;">{{ pin.label }}</td>
-                    <td class="mono">{{ "%.6f"|format(pin.latitude) }}, {{ "%.6f"|format(pin.longitude) }}</td>
-                    <td>{{ pin.description or '' }}</td>
-                    <td><a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" rel="noopener">Open map</a></td>
-                    <td class="right">
-                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" class="inline-form" onsubmit="return confirm('Delete pin?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger">×</button></form>
+                    <td data-label="Date" class="nowrap">{{ record.date.isoformat() }}</td>
+                    <td data-label="Value" class="figure strong">{{ record.value_cents | currency }}</td>
+                    <td data-label="Source">{{ record.source or '' }}</td>
+                    <td data-label="Notes" class="muted small">{{ record.notes or '' }}</td>
+                    <td class="cell-actions right">
+                        <button type="button" class="icon-btn"
+                            data-id="{{ record.id }}" data-date="{{ record.date.isoformat() }}"
+                            data-value="{{ record.value_cents | money_input }}"
+                            data-source="{{ record.source or '' }}" data-notes="{{ record.notes or '' }}"
+                            onclick="openEditModal(this.dataset)" title="Edit" aria-label="Edit valuation">✎</button>
                     </td>
                 </tr>
-                {% else %}
-                <tr><td colspan="5" class="empty" style="text-align: center;">No pins dropped yet. Use "Drop pin" while standing at the location.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
         </div>
-    </div>
+        {% else %}
+        <p class="empty">No valuations recorded yet.</p>
+        {% endif %}
+    </section>
 
-    <div id="tab-events" class="tab-content" style="display:none;">
-        <div class="row-between">
-            <h3>Events</h3>
-            <a href="{{ url_for('manage.create_event', holding_id=holding.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}" class="btn-primary btn-sm">+ Add event</a>
+    {# --- Bills ----------------------------------------------------------- #}
+    <section class="hsec" id="bills">
+        <div class="hsec-head">
+            <h2>Bills</h2>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='bill') }}" class="btn-primary btn-sm">+ Add bill</a>
         </div>
-        {% for e in holding.events %}
+        {% if holding.bills %}
+        <div class="table-wrap">
+        <table class="data-table is-stacking">
+            <thead><tr><th>Bill</th><th>Payee / Acct #</th><th>Frequency</th><th>Amount (est.)</th><th>Next due</th><th class="col-icon"></th></tr></thead>
+            <tbody>
+                {% for bill in holding.bills %}
+                <tr>
+                    <td class="cell-title">{{ bill.name }}</td>
+                    <td data-label="Payee">
+                        {{ bill.payee or '' }}
+                        {% if bill.account_number %}<div class="small muted mono">#{{ bill.account_number }}</div>{% endif %}
+                    </td>
+                    <td data-label="Frequency">{{ bill.frequency or '' }}</td>
+                    <td data-label="Amount" class="figure">{{ bill.amount_cents | currency }}</td>
+                    <td data-label="Next due" class="nowrap">{% if bill.next_due_date %}<span class="chip chip-royal">{{ bill.next_due_date }}</span>{% else %}-{% endif %}</td>
+                    <td class="cell-actions right">
+                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="inline-form" onsubmit="return confirm('Remove bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger" aria-label="Remove bill">×</button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="empty">No recurring bills linked.</p>
+        {% endif %}
+    </section>
+
+    {# --- People ---------------------------------------------------------- #}
+    <section class="hsec" id="team">
+        <div class="hsec-head">
+            <h2>People who look after this</h2>
+            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='vendor') }}" class="btn-primary btn-sm">+ Assign contact</a>
+        </div>
+        {% if holding.vendors %}
+        <div class="grid-3">
+            {% for link in holding.vendors %}
+            <div class="summary-card card-accent-laurel team-card">
+                <div class="card-name">{{ link.provider.name }}</div>
+                <span class="chip chip-laurel">{{ link.role }}</span>
+                <div class="small team-contact"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
+                {% if link.notes %}<div class="person-note">{{ link.notes }}</div>{% endif %}
+                <div class="card-foot">
+                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="inline-form" onsubmit="return confirm('Unassign?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Unassign</button></form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">No one assigned to this item yet.</p>
+        {% endif %}
+    </section>
+
+    {# --- Place: only for things you could stand next to ------------------ #}
+    {% set add_structure = url_for('manage.manage_subitem', id=holding.id, subitem_type='structure') %}
+    {% set add_pin = url_for('manage.manage_subitem', id=holding.id, subitem_type='location') %}
+    {% if show_place %}
+    <section class="hsec" id="place">
+        <div class="hsec-head">
+            <h2>Place</h2>
+            <div class="hsec-actions">
+                <a href="{{ add_pin }}" class="btn btn-sm">📍 Drop pin</a>
+                <a href="{{ add_structure }}" class="btn-primary btn-sm">+ Add structure</a>
+            </div>
+        </div>
+
+        <h3 class="hsub">Structures &amp; accommodations</h3>
+        {% if holding.structures %}
+        <div class="grid-3">
+            {% for item in holding.structures %}
+            <div class="summary-card">
+                <div class="card-name">{{ item.name }}</div>
+                <div class="small muted">{{ item.structure_type or '' }}</div>
+                {% if item.description %}<p class="card-text">{{ item.description }}</p>{% endif %}
+                {% if item.date_last_maintained %}
+                <div class="small is-asset">Last maintained: {{ item.date_last_maintained }}</div>
+                {% endif %}
+                <div class="card-foot ruled">
+                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='structure', item_id=item.id) }}" class="inline-form" onsubmit="return confirm('Delete?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Remove</button></form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">No structures recorded.</p>
+        {% endif %}
+
+        <h3 class="hsub">Location pins</h3>
+        {% if holding.location_points %}
+        <div class="table-wrap">
+        <table class="data-table is-stacking">
+            <thead><tr><th>Label</th><th>Coordinates</th><th>Description</th><th>Map</th><th class="col-icon"></th></tr></thead>
+            <tbody>
+                {% for pin in holding.location_points %}
+                <tr>
+                    <td class="cell-title">{{ pin.label }}</td>
+                    <td data-label="Where" class="mono">{{ "%.6f"|format(pin.latitude) }}, {{ "%.6f"|format(pin.longitude) }}</td>
+                    <td data-label="Notes">{{ pin.description or '' }}</td>
+                    <td data-label="Map"><a href="https://www.google.com/maps/search/?api=1&query={{ pin.latitude }},{{ pin.longitude }}" target="_blank" rel="noopener">Open map</a></td>
+                    <td class="cell-actions right">
+                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='location', item_id=pin.id) }}" class="inline-form" onsubmit="return confirm('Delete pin?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger" aria-label="Delete pin">×</button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="empty">No pins dropped yet. Use Drop pin while standing at the spot.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {# --- Events ---------------------------------------------------------- #}
+    {% set back_here = here ~ '#events' %}
+    <section class="hsec" id="events">
+        <div class="hsec-head">
+            <h2>Events</h2>
+            <div class="hsec-actions">
+                <a href="{{ url_for('main.timeline_view') }}" class="link-quiet">All events on the timeline →</a>
+                <a href="{{ url_for('manage.create_event', holding_id=holding.id, next=back_here) }}" class="btn-primary btn-sm">+ Add event</a>
+            </div>
+        </div>
+        {% for e in events %}
         <a class="ev-row ev-kind-{{ e.kind }}{% if e.is_done %} ev-done{% endif %}"
-           href="{{ url_for('manage.edit_event', id=e.id, next=url_for('main.holding_details', id=holding.id) ~ '#events') }}">
-            <div class="ev-icon">{{ e.icon }}</div>
+           href="{{ url_for('manage.edit_event', id=e.id, next=back_here) }}">
+            <div class="ev-icon" aria-hidden="true">{{ e.icon }}</div>
             <div class="ev-body">
                 <div class="ev-title">{{ e.title }}</div>
                 <div class="ev-meta">
@@ -283,62 +437,16 @@
             </div>
         </a>
         {% else %}
-        <p class="empty" style="text-align: center;">No events for this holding. Bill due dates and checks appear on the Now page by themselves.</p>
+        <p class="empty">No events yet.</p>
         {% endfor %}
-    </div>
+        {% if events_more %}<p class="small muted">{{ events_more }} older on the timeline.</p>{% endif %}
+    </section>
 
-    <div id="tab-bills" class="tab-content" style="display:none;">
-        <div class="row-between">
-            <h3>Recurring bills</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='bill') }}" class="btn-primary btn-sm">+ Add bill</a>
-        </div>
-        <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>Bill</th><th>Payee / Acct #</th><th>Frequency</th><th>Amount (est.)</th><th>Next due</th><th></th></tr></thead>
-            <tbody>
-                {% for bill in holding.bills %}
-                <tr>
-                    <td style="font-weight: 600;">{{ bill.name }}</td>
-                    <td>
-                        {{ bill.payee or '' }}
-                        {% if bill.account_number %}<div class="small muted mono">#{{ bill.account_number }}</div>{% endif %}
-                    </td>
-                    <td>{{ bill.frequency or '' }}</td>
-                    <td class="figure">{{ bill.amount_cents | currency }}</td>
-                    <td class="nowrap">{{ bill.next_due_date or '-' }}</td>
-                    <td class="right">
-                        <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="inline-form" onsubmit="return confirm('Remove bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger">×</button></form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6" class="empty" style="text-align: center;">No recurring bills linked.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-    </div>
-
-    <div id="tab-team" class="tab-content" style="display:none;">
-        <div class="row-between">
-            <h3>People who look after this</h3>
-            <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='vendor') }}" class="btn-primary btn-sm">+ Assign contact</a>
-        </div>
-        <div class="grid-3">
-            {% for link in holding.vendors %}
-            <div class="summary-card card-accent-laurel">
-                <div style="font-family: var(--serif); font-weight: 600; font-size: 1.1rem;">{{ link.provider.name }}</div>
-                <span class="chip chip-laurel" style="margin: 0.4rem 0 0.6rem;">{{ link.role }}</span>
-                <div class="small"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
-                {% if link.notes %}<div class="person-note">{{ link.notes }}</div>{% endif %}
-                <div class="right" style="margin-top: 1rem;">
-                    <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="inline-form" onsubmit="return confirm('Unassign?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Unassign</button></form>
-                </div>
-            </div>
-            {% else %}
-            <p class="empty">No one assigned to this item yet.</p>
-            {% endfor %}
-        </div>
-    </div>
+    {% if not show_place %}
+    <p class="place-footer">Nothing here has a place yet ·
+        <a href="{{ add_structure }}">+ Add structure</a> ·
+        <a href="{{ add_pin }}">📍 Drop pin</a></p>
+    {% endif %}
 </div>
 
 <div id="editModal" class="modal-backdrop">
@@ -361,37 +469,55 @@
     </div>
 </div>
 
-<style>
-    .share-form { display: grid; grid-template-columns: 2fr 1fr 2fr 2fr auto; gap: 0.6rem; align-items: end; }
-    @media (max-width: 800px) { .share-form { grid-template-columns: 1fr 1fr; } .share-form button { grid-column: 1 / -1; } }
-</style>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
 <script>
-    function openTab(evt, tabName) {
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-        document.getElementById(tabName).style.display = 'block';
-        if (evt) evt.currentTarget.classList.add('active');
+    function toggleDropdown(event, menuId) {
+        event.stopPropagation();
+        document.getElementById(menuId).classList.toggle('show');
     }
-    // Open the tab a redirect pointed at (e.g. #beneficiaries after adding a share).
-    document.addEventListener('DOMContentLoaded', function() {
-        var tab = window.location.hash ? document.getElementById('tab-' + window.location.hash.slice(1)) : null;
-        if (tab) {
-            var btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').indexOf(tab.id) !== -1);
-            openTab(btn ? {currentTarget: btn} : null, tab.id);
-        }
+    document.addEventListener('click', function() {
+        document.querySelectorAll('.menu-dropdown').forEach(m => m.classList.remove('show'));
     });
 
     function toggleSecrets(btn) {
-        var showing = btn.dataset.showing === '1';
-        document.querySelectorAll('.secret').forEach(el => el.style.display = showing ? 'none' : 'inline');
-        document.querySelectorAll('.masked').forEach(el => el.style.display = showing ? 'inline' : 'none');
-        btn.dataset.showing = showing ? '0' : '1';
-        btn.textContent = showing ? 'Show sensitive' : 'Hide sensitive';
+        var section = btn.closest('.hsec');
+        var showing = section.classList.toggle('show-secrets');
+        btn.textContent = showing ? 'Hide sensitive' : 'Show sensitive';
     }
+
+    // The valuation form sits beside the chart on a wide screen; narrower, it folds.
+    var fold = document.getElementById('valuation-fold');
+    var wide = window.matchMedia('(min-width: 1000px)');
+    function syncFold() { if (wide.matches) fold.open = true; }
+    syncFold();
+    wide.addEventListener('change', syncFold);
+
+    // Jump bar: the chip for the section in view lights up and scrolls into the bar.
+    (function() {
+        var bar = document.querySelector('.jump-track');
+        var chips = Array.from(bar.querySelectorAll('.jump-chip'));
+        var byId = {};
+        chips.forEach(c => byId[c.getAttribute('href').slice(1)] = c);
+        function edge() { bar.parentNode.classList.toggle('at-end', bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4); }
+        bar.addEventListener('scroll', edge, {passive: true});
+        edge();
+        if (!('IntersectionObserver' in window)) return;
+        var seen = new Map();
+        var io = new IntersectionObserver(function(entries) {
+            entries.forEach(e => seen.set(e.target.id, e.isIntersecting));
+            var current = chips.map(c => c.getAttribute('href').slice(1)).find(id => seen.get(id));
+            if (!current) return;
+            chips.forEach(c => c.classList.toggle('active', c === byId[current]));
+            var chip = byId[current];
+            var left = chip.offsetLeft - bar.offsetLeft;
+            if (left < bar.scrollLeft || left + chip.offsetWidth > bar.scrollLeft + bar.clientWidth) {
+                bar.scrollTo({left: left - 16, behavior: 'smooth'});
+            }
+        }, {rootMargin: '-35% 0px -60% 0px'});
+        Object.keys(byId).forEach(id => { var s = document.getElementById(id); if (s) io.observe(s); });
+    })();
 
     const modal = document.getElementById('editModal');
     const editForm = document.getElementById('editForm');
