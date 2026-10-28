@@ -13,6 +13,7 @@ from src.forms import (build_holding_form, ValuationForm, PersonForm, Designatio
                        EventForm, PlaybookForm, PlaybookStepForm, RunPlaybookForm)
 from src.services import events as event_service, playbooks as playbook_service
 from src.services import default_playbook
+from src.phone import format_phone
 from src.holding_types import (SIDES, SIDE_META, get_type, types_for, parse_field,
                                validate_attributes, input_value)
 from src.services.auth_service import login_required
@@ -373,7 +374,7 @@ def _person_from_form(person, form):
     person.name = form.name.data
     person.kind = form.kind.data
     person.email = form.email.data
-    person.phone = form.phone.data
+    person.phone = format_phone(form.phone.data)
     attrs = dict(person.attributes or {})
     for key in ('address', 'notes'):
         value = getattr(form, key).data

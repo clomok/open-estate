@@ -340,7 +340,7 @@
             <div class="summary-card card-accent-laurel team-card">
                 <div class="card-name">{{ link.provider.name }}</div>
                 <span class="chip chip-laurel">{{ link.role }}</span>
-                <div class="small team-contact"><div>{{ link.provider.phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
+                <div class="small team-contact"><div>{{ link.provider.phone|phone or '' }}</div><div>{{ link.provider.email or '' }}</div></div>
                 {% if link.notes %}<div class="person-note">{{ link.notes }}</div>{% endif %}
                 <div class="card-foot">
                     <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='vendor', item_id=link.id) }}" class="inline-form" onsubmit="return confirm('Unassign?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn-danger-text">Unassign</button></form>

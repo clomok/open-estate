@@ -56,7 +56,7 @@
                 <div class="line"><span class="glyph">✉</span> <a href="mailto:{{ person.email }}">{{ person.email }}</a></div>
                 {% endif %}
                 {% if person.phone %}
-                <div class="line"><span class="glyph">☎</span> <span>{{ person.phone }}</span></div>
+                <div class="line"><span class="glyph">☎</span> <span>{{ person.phone|phone }}</span></div>
                 {% endif %}
                 {% if person.attributes and person.attributes.get('address') %}
                 <div class="line"><span class="glyph">⌂</span> <span class="pre">{{ person.attributes.address }}</span></div>
@@ -91,7 +91,7 @@
 
             <div class="person-contact">
                 {% if person.email %}<div class="line"><span class="glyph">✉</span> <a href="mailto:{{ person.email }}">{{ person.email }}</a></div>{% endif %}
-                {% if person.phone %}<div class="line"><span class="glyph">☎</span> <span>{{ person.phone }}</span></div>{% endif %}
+                {% if person.phone %}<div class="line"><span class="glyph">☎</span> <span>{{ person.phone|phone }}</span></div>{% endif %}
                 {% if person.attributes and person.attributes.get('address') %}
                 <div class="line"><span class="glyph">⌂</span> <span class="pre">{{ person.attributes.address }}</span></div>
                 {% endif %}

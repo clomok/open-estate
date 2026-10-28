@@ -4,7 +4,7 @@
 <div class="person-line">
     <strong>{{ p.name }}</strong>{% if p.kind == 'organisation' %} <span class="muted">(organisation)</span>{% endif %}
     {% if roles %}<span class="muted"> — {{ roles }}</span>{% endif %}
-    <div class="reach">{% if p.phone %}{{ p.phone }}{% endif %}{% if p.phone and p.email %} · {% endif %}{% if p.email %}{{ p.email }}{% endif %}{% if not p.phone and not p.email %}<span class="muted">No phone or email recorded</span>{% endif %}</div>
+    <div class="reach">{% if p.phone %}{{ p.phone|phone }}{% endif %}{% if p.phone and p.email %} · {% endif %}{% if p.email %}{{ p.email }}{% endif %}{% if not p.phone and not p.email %}<span class="muted">No phone or email recorded</span>{% endif %}</div>
 </div>
 {% endmacro %}
 
@@ -30,7 +30,7 @@
     <ul class="subitems">
         {% for s in h.structures %}<li>Structure: {{ s.name }}{% if s.structure_type %} ({{ s.structure_type }}){% endif %}{% if s.description %} — {{ s.description }}{% endif %}</li>{% endfor %}
         {% for pt in h.location_points %}<li>Pin: {{ pt.label }}{% if pt.description %} — {{ pt.description }}{% endif %}</li>{% endfor %}
-        {% for v in h.vendors %}<li>{{ v.role }}: {{ v.provider.name }}{% if v.provider.phone %}, {{ v.provider.phone }}{% endif %}</li>{% endfor %}
+        {% for v in h.vendors %}<li>{{ v.role }}: {{ v.provider.name }}{% if v.provider.phone %}, {{ v.provider.phone|phone }}{% endif %}</li>{% endfor %}
     </ul>
     {% endif %}
     {% if card.valuations|length > 1 %}

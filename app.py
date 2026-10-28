@@ -87,6 +87,9 @@ def create_app(config_class=Config):
 
     app.jinja_env.filters['money_input'] = cents_to_input
 
+    from src.phone import format_phone
+    app.jinja_env.filters['phone'] = format_phone
+
     from datetime import timedelta
 
     @app.template_filter('relday')

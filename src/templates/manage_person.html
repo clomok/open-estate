@@ -39,7 +39,7 @@
                 </div>
                 <div class="oe-field" style="margin-bottom: 0;">
                     <label>{{ form.phone.label.text }}</label>
-                    {{ form.phone() }}
+                    {{ form.phone(type='tel', inputmode='tel', autocomplete='tel', placeholder='(555) 555-0100') }}
                 </div>
             </div>
 
@@ -60,4 +60,28 @@
         </form>
     </div>
 </div>
+<script>
+// Format as the number is typed: 5551234567 -> (555) 123-4567. Leaves a
+// number that is not ten US digits (extension, international) as typed.
+(function () {
+    var el = document.getElementById('phone');
+    if (!el) return;
+    function fmt(v) {
+        if (/[A-Za-z#]/.test(v) || /^\s*\+(?!1)/.test(v)) return v;
+        var d = v.replace(/\D/g, '');
+        if (d.length === 11 && d[0] === '1') d = d.slice(1);
+        if (d.length > 10) return v;
+        if (d.length === 0) return '';
+        if (d.length < 4) return '(' + d;
+        if (d.length < 7) return '(' + d.slice(0, 3) + ') ' + d.slice(3);
+        return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
+    }
+    el.addEventListener('input', function (e) {
+        if (e.inputType && e.inputType.indexOf('delete') === 0) return;
+        el.value = fmt(el.value);
+    });
+    el.addEventListener('blur', function () { el.value = fmt(el.value); });
+    el.value = fmt(el.value);
+})();
+</script>
 {% endblock %}

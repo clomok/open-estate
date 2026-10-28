@@ -84,14 +84,14 @@ def seed_generalized_data(slug):
         root.notes = "Revocable living trust. Original signed copy is in the fire safe."
 
         print("--- [EXAMPLE] People ---")
-        john = person("John Doe", ["Trustor", "Trustee"], email="john@example.com", phone="555-0100")
-        jane = person("Jane Doe", ["Trustor", "Trustee"], email="jane@example.com", phone="555-0101")
+        john = person("John Doe", ["Trustor", "Trustee"], email="john@example.com", phone="(555) 555-0100")
+        jane = person("Jane Doe", ["Trustor", "Trustee"], email="jane@example.com", phone="(555) 555-0101")
         junior = person("Junior Doe", ["Beneficiary", "SuccessorTrustee"], email="junior@example.com")
         sis = person("Sally Doe", ["Beneficiary"])
-        gardener = person("Green Thumb Landscaping", ["Vendor"], kind="organisation", phone="555-0199")
+        gardener = person("Green Thumb Landscaping", ["Vendor"], kind="organisation", phone="(555) 555-0199")
         attorney = person("Example & Partners LLP", ["Attorney"], kind="organisation",
-                          email="office@example.com", phone="555-0150")
-        mechanic = person("Main Street Garage", ["Vendor"], kind="organisation", phone="555-0177")
+                          email="office@example.com", phone="(555) 555-0150")
+        mechanic = person("Main Street Garage", ["Vendor"], kind="organisation", phone="(555) 555-0177")
         db.session.flush()
 
         print("--- [EXAMPLE] Entities attached to the trust ---")

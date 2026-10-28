@@ -171,7 +171,7 @@
         {% for r in rows %}
         <li>
             <strong>{{ r.step.title }}</strong>{% if r.step.offset_days %} <span class="muted">· day {{ r.step.offset_days }}</span>{% endif %}
-            <div class="reach">{% if r.person %}{{ r.person.name }}{% if r.person.phone %} · {{ r.person.phone }}{% endif %}{% if r.person.email %} · {{ r.person.email }}{% endif %}{% else %}<span class="muted">unassigned{% if r.step.who_role %} — no one holds the {{ (role_labels|selectattr(0, 'eq', r.step.who_role)|map(attribute=1)|first) or r.step.who_role }} role{% endif %}</span>{% endif %}</div>
+            <div class="reach">{% if r.person %}{{ r.person.name }}{% if r.person.phone %} · {{ r.person.phone|phone }}{% endif %}{% if r.person.email %} · {{ r.person.email }}{% endif %}{% else %}<span class="muted">unassigned{% if r.step.who_role %} — no one holds the {{ (role_labels|selectattr(0, 'eq', r.step.who_role)|map(attribute=1)|first) or r.step.who_role }} role{% endif %}</span>{% endif %}</div>
             {% if r.step.instructions %}<p class="pre">{{ r.step.instructions }}</p>{% endif %}
             {% if r.step.document_type %}<p class="muted">Find first: {{ r.step.document_type }}</p>{% endif %}
         </li>
