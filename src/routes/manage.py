@@ -468,15 +468,21 @@ SUBITEMS = {
 
 
 @bp.route('/holding/<int:id>/<string:subitem_type>/new', methods=['GET', 'POST'])
+@bp.route('/holding/<int:id>/<string:subitem_type>/<int:item_id>/edit', methods=['GET', 'POST'])
 @login_required
-def manage_subitem(id, subitem_type):
+def manage_subitem(id, subitem_type, item_id=None):
     holding = Holding.query.get_or_404(id)
     cfg = SUBITEMS.get(subitem_type)
     if cfg is None:
         flash('Unknown item type.', 'error')
         return redirect(url_for('main.holding_details', id=id))
 
-    form = cfg['form']()
+    item = cfg['model'].query.get_or_404(item_id) if item_id else None
+    if item is not None and item.holding_id != holding.id:
+        abort(404)
+    title = cfg['title'].replace('Add', 'Edit', 1) if item else cfg['title']
+
+    form = cfg['form'](obj=item)
     if subitem_type == 'vendor':
         people = Person.query.order_by(Person.name).all()
         form.person_id.choices = [
@@ -484,17 +490,18 @@ def manage_subitem(id, subitem_type):
             for p in people]
 
     if form.validate_on_submit():
-        item = cfg['model']()
-        item.holding_id = holding.id
+        if item is None:
+            item = cfg['model']()
+            item.holding_id = holding.id
+            db.session.add(item)
         form.populate_obj(item)
         if subitem_type == 'bill' and item.amount_cents is None:
             item.amount_cents = 0
-        db.session.add(item)
         db.session.commit()
-        flash(f'{cfg["title"]} saved.', 'success')
+        flash(f'{title} saved.', 'success')
         return redirect(url_for('main.holding_details', id=id))
 
-    return render_template('manage_subitem.html', form=form, title=cfg['title'],
+    return render_template('manage_subitem.html', form=form, title=title,
                            holding=holding, subitem_type=subitem_type, active_page='assets')
 
 

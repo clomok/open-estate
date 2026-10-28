@@ -316,6 +316,7 @@
                     <td data-label="Amount" class="figure">{{ bill.amount_cents | currency }}</td>
                     <td data-label="Next due" class="nowrap">{% if bill.next_due_date %}<span class="chip chip-royal">{{ bill.next_due_date }}</span>{% else %}-{% endif %}</td>
                     <td class="cell-actions right">
+                        <a href="{{ url_for('manage.manage_subitem', id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="icon-btn" title="Edit" aria-label="Edit bill">✎</a>
                         <form method="POST" action="{{ url_for('manage.delete_subitem', holding_id=holding.id, subitem_type='bill', item_id=bill.id) }}" class="inline-form" onsubmit="return confirm('Remove bill?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-btn danger" aria-label="Remove bill">×</button></form>
                     </td>
                 </tr>

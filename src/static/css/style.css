@@ -742,7 +742,9 @@ button.menu-item { width: 100%; text-align: left; background: none; border: none
     /* Rows with several buttons (Save / Remove) put them along the bottom. */
     .data-table.is-stacking .cell-actions:has(.btn-sm) { position: static; display: flex; gap: 0.5rem; justify-content: flex-end; padding-top: 0.6rem; border-top: 1px solid var(--parchment-deep); margin-top: 0.3rem; }
     .main-content .data-table.is-stacking select, .main-content .data-table.is-stacking input.w-full { flex: 1 1 auto; width: auto; }
-    .data-table.is-stacking .icon-btn { min-width: 44px; min-height: 44px; }
+    .data-table.is-stacking .icon-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    /* Two icon buttons (Edit + Remove) need more room beside the title. */
+    .data-table.is-stacking tr:has(.cell-actions > :nth-child(2)) .cell-title { padding-right: 6rem; }
 }
 
 @media print {

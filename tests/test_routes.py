@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from src.holding_types import REGISTRY
-from src.models import BeneficiaryDesignation, Entity, Holding, Person, Valuation
+from src.models import BeneficiaryDesignation, Entity, Holding, Person, RecurringBill, Valuation
 from tests.fixtures_estate import _populate
 
 
@@ -70,6 +70,22 @@ def test_sub_items_are_offered_on_every_side(client, estate):
         page = ok(client.get(f"/e/test/holding/{hid}"))
         for kind in ("structure", "location", "bill", "vendor"):
             assert f"/manage/holding/{hid}/{kind}/new" in page
+
+
+def test_a_bill_can_be_edited_after_it_is_created(client, estate):
+    page = ok(client.get("/e/test/holding/10"))
+    assert "/manage/holding/10/bill/70/edit" in page
+    form = ok(client.get("/e/test/manage/holding/10/bill/70/edit"))
+    assert "Edit Recurring Bill" in form and "County Property Tax" in form
+    r = client.post("/e/test/manage/holding/10/bill/70/edit", data={
+        "name": "County Property Tax (2nd half)", "payee": "SD Treasurer",
+        "amount_cents": "4,250.50", "frequency": "Annual", "next_due_date": "2027-04-10"})
+    assert r.status_code == 302
+    bill = estate.session.get(RecurringBill, 70)
+    assert (bill.name, bill.payee, bill.amount_cents) == ("County Property Tax (2nd half)", "SD Treasurer", 425050)
+    assert RecurringBill.query.count() == 2          # edited in place, not added
+    # A bill reached through some other holding's URL is not editable there.
+    assert client.get("/e/test/manage/holding/10/bill/71/edit").status_code == 404
 
 
 def test_dashboard_net_worth_is_assets_minus_liabilities(client, estate):
