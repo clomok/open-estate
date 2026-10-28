@@ -2,6 +2,15 @@
 
 {% block title %}Print the binder · Open Estate{% endblock %}
 {% block content %}
+<style>
+    /* Inline so a cached style.css cannot leave this page half-styled. */
+    .bind-opts { margin: 1rem 0; }
+    .bind-opt { display: block; padding: 0.85rem 0; border-top: 1px solid var(--border); cursor: pointer; }
+    .bind-opt:last-child { border-bottom: 1px solid var(--border); }
+    .bind-opt .bind-line { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; }
+    .bind-opt .bind-why { display: block; margin-top: 0.3rem; font-size: 0.85rem; font-weight: 400; color: var(--stone); }
+    .bind-note { margin: 0 0 1.2rem; }
+</style>
 <div class="page-form">
     <div class="page-head">
         <div>
@@ -13,15 +22,12 @@
         <p class="summary-note">The binder is one long document built from what is recorded here. Choose what this copy should contain, then open it and use Save as PDF / Print.</p>
         <form method="get" action="{{ url_for('binder.binder_view') }}">
             <div class="bind-opts">
-                <label class="bind-opt"><input type="checkbox" name="planning" value="1">
-                    <div><strong>Include the planning sections</strong>
-                    <span>What to do on the death of the trustor, and the year ahead.</span></div></label>
-                <label class="bind-opt"><input type="checkbox" name="reveal" value="1">
-                    <div><strong>Show sensitive details in full</strong>
-                    <span>Account numbers and the like. Otherwise only the last four characters print. Keep a copy like this somewhere safe.</span></div></label>
-                <label class="bind-opt"><input type="checkbox" name="hide_empty" value="1">
-                    <div><strong>Leave out empty sections</strong>
-                    <span>Omit any section with nothing recorded yet.</span></div></label>
+                <label class="bind-opt"><span class="bind-line"><input type="checkbox" name="planning" value="1"> Include the planning sections</span>
+                    <span class="bind-why">What to do on the death of the trustor, and the year ahead.</span></label>
+                <label class="bind-opt"><span class="bind-line"><input type="checkbox" name="reveal" value="1"> Show sensitive details in full</span>
+                    <span class="bind-why">Account numbers and the like. Otherwise only the last four characters print. Keep a copy like this somewhere safe.</span></label>
+                <label class="bind-opt"><span class="bind-line"><input type="checkbox" name="hide_empty" value="1"> Leave out empty sections</span>
+                    <span class="bind-why">Omit any section with nothing recorded yet.</span></label>
             </div>
             <p class="oe-help bind-note">For page numbers and the footer, print from Chrome or Edge. Firefox and Safari print the binder without page numbers.</p>
             <button type="submit" class="btn-primary">Open binder</button>
