@@ -1175,3 +1175,13 @@ body.login-body {
 .login-card input:focus { outline: none; border-color: var(--royal); box-shadow: 0 0 0 3px rgba(42, 68, 148, 0.15); }
 .login-card button { width: 100%; min-height: 46px; font-size: 1rem; }
 .login-foot { margin-top: 1.5rem; font-size: 0.75rem; color: var(--stone); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Print-the-binder setup: a checkbox, then a bold title over a quiet explanation. */
+.bind-opts { margin: 1rem 0; }
+.bind-opt { display: grid; grid-template-columns: auto 1fr; column-gap: 0.8rem; align-items: start;
+            padding: 0.85rem 0; border-top: 1px solid var(--border); cursor: pointer; }
+.bind-opt:last-child { border-bottom: 1px solid var(--border); }
+.bind-opt input { margin-top: 0.15rem; }
+.bind-opt strong { display: block; font-weight: 600; }
+.bind-opt span { display: block; font-size: 0.85rem; color: var(--stone); margin-top: 0.15rem; }
+.bind-note { margin: 0 0 1.2rem; }
