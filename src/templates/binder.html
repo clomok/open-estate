@@ -240,7 +240,6 @@
 {% if options.planning and 'appendix' not in hidden %}
 <section class="article" id="appendix">
     {{ article_head('Appendix', 'The year ahead and what needs attention') }}
-    <h2>The year ahead</h2>
     {% for month, rows in ahead_months %}
     <h2>{{ month.strftime('%B %Y') }}</h2>
     <ul class="plain">{% for r in rows %}<li><strong>{{ long_date(r.date) }}</strong> — {{ r.title }}{% if r.description %} <span class="muted">· {{ r.description }}</span>{% endif %}</li>{% endfor %}</ul>
