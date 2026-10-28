@@ -125,6 +125,38 @@ def holding_facts(holding, reveal=False):
     return facts
 
 
+# offset_days bands for Article VI: (heading, first day, last day or None)
+PLAYBOOK_BANDS = [("The first 72 hours", 0, 3), ("Days 4 to 30", 4, 30),
+                  ("Days 31 to 90", 31, 90), ("The first year", 91, 365),
+                  ("Later", 366, None)]
+
+
+def playbook_bands(steps, roles):
+    """[(heading, [{"step", "person"}])] for Article VI, empty bands dropped.
+
+    `roles` is `people_by_role`'s mapping; a step's person is the first one
+    holding its who_role, or None (printed "unassigned"). Steps keep the
+    order they have inside a band (offset, then position)."""
+    ordered = sorted(steps, key=lambda s: (s.offset_days, s.position))
+    out = []
+    for heading, lo, hi in PLAYBOOK_BANDS:
+        rows = []
+        for s in ordered:
+            if s.offset_days >= lo and (hi is None or s.offset_days <= hi):
+                holders = roles.get(s.who_role) if s.who_role else None
+                rows.append({"step": s, "person": holders[0] if holders else None})
+        if rows:
+            out.append((heading, rows))
+    return out
+
+
+def year_ahead(rows, today, days=365):
+    """Open dated rows from today through `days` days on, soonest first."""
+    end = today + timedelta(days=days)
+    keep = [r for r in rows if r.date and not r.done_at and today <= r.date <= end]
+    return sorted(keep, key=lambda r: (r.date, r.title.lower()))
+
+
 def recent_valuations(holding, n=5):
     return sorted(holding.valuations, key=lambda v: (v.date, v.id or 0), reverse=True)[:n]
 
