@@ -18,6 +18,12 @@
             <a href="{{ url_for('settings.download_backup') }}" class="btn-primary">Download backup (.zip)</a>
         </div>
 
+        <div class="card card-accent-gold">
+            <h3>Printed binder</h3>
+            <p class="summary-note">A bound summary and map of the whole estate, to print or save as a PDF.</p>
+            <a href="{{ url_for('binder.binder_setup') }}" class="btn-primary">Print binder</a>
+        </div>
+
         {% if estate.protected %}
         <div class="card card-accent-gold">
             <h3 style="color: var(--bronze);">Protected: real data</h3>

@@ -9,7 +9,10 @@
             <h1>{{ profile.name }}</h1>
             <div class="page-sub">Established {{ profile.date_established or '— date not set' }}</div>
         </div>
-        <a href="{{ url_for('manage.edit_trust_profile') }}" class="btn-primary">Edit trust details</a>
+        <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+            <a href="{{ url_for('binder.binder_setup') }}" class="btn">Print binder</a>
+            <a href="{{ url_for('manage.edit_trust_profile') }}" class="btn-primary">Edit trust details</a>
+        </div>
     </div>
 
     <div class="grid-2-sidebar">
