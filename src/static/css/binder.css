@@ -91,7 +91,7 @@ tr.incomplete td { background: var(--oxblood-soft); }
     /* Every section starts at the top of a page: each Article's sub-headings, each
        entity block and each holding card. The first one after an Article head stays put. */
     .article > h2, .entity-sheet, .holding-card { break-before: page; }
-    .article-head + h2, .article-head + .holding-card, .article-head + .entity-sheet, h2 + .entity-sheet { break-before: auto; }
+    .article-head + h2, .article-head + p + h2, .article-head + .holding-card, .article-head + .entity-sheet, h2 + .entity-sheet { break-before: auto; }
     .holding-head, .binder h2, .binder h3 { break-after: avoid; }
     thead { display: table-header-group; }
     a { color: inherit; text-decoration: none; }
