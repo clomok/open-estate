@@ -16,7 +16,7 @@
         <div class="holding-value">{{ h.value_cents | currency }}{% if h.side == 'liability' %} <span class="muted">owed</span>{% endif %}</div>
     </div>
     <dl class="facts">
-        <dt>Held by</dt><dd>{{ h.entity.name if h.entity else 'The trust' }}</dd>
+        <dt>Held by</dt><dd>{{ h.entity.name if h.entity else root.name }}</dd>
         {% if h.owner %}<dt>Titled to</dt><dd>{{ h.owner.name }}</dd>{% endif %}
         {% if h.ownership_pct is not none %}<dt>Ownership</dt><dd>{{ '%g' % h.ownership_pct }}%</dd>{% endif %}
         {% if h.secured_by %}<dt>Secured by</dt><dd>{{ h.secured_by.name }}</dd>{% endif %}

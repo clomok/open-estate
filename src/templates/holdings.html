@@ -45,7 +45,7 @@
             </div>
             <div class="asset-chips">
                 {% if h.in_trust %}
-                    <span class="asset-badge badge-trust">In the trust</span>
+                    <span class="asset-badge badge-trust">In {{ root.name }}</span>
                 {% else %}
                     <span class="asset-badge chip-plum">{{ h.entity.name }}</span>
                 {% endif %}

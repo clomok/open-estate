@@ -351,3 +351,9 @@ def test_year_ahead_window_and_order():
             R("past", date(2026, 10, 26)), R("undated", None),
             R("done", date(2026, 12, 1), done=date(2026, 11, 1)), R("A2", today)]
     assert [r.title for r in svc.year_ahead(rows, today)] == ["a", "A2", "b"]
+
+
+def test_a_holding_in_the_trust_is_held_by_the_trust_by_name(client, estate):
+    html = page(client)
+    assert "<dt>Held by</dt><dd>The Example Family Trust</dd>" in html
+    assert "<dt>Held by</dt><dd>The trust</dd>" not in html
