@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Print the binder · Open Estate{% endblock %}
+{% block content %}
+<div class="page-form">
+    <div class="page-head">
+        <div>
+            <span class="eyebrow">Estate binder</span>
+            <h1>Print the binder</h1>
+        </div>
+    </div>
+    <div class="card">
+        <p class="summary-note">The binder is one long document built from what is recorded here. Choose what this copy should contain, then open it and use Save as PDF / Print.</p>
+        <form method="get" action="{{ url_for('binder.binder_view') }}">
+            <label class="oe-check"><input type="checkbox" name="planning" value="1">
+                <strong>Include the planning sections</strong> — what to do on the death of the trustor, and the year ahead.</label>
+            <label class="oe-check"><input type="checkbox" name="reveal" value="1">
+                <strong>Show sensitive details in full</strong> — account numbers and the like. Otherwise only the last four characters print. Keep a copy like this somewhere safe.</label>
+            <label class="oe-check"><input type="checkbox" name="hide_empty" value="1">
+                <strong>Leave out empty sections</strong> — omit any section with nothing recorded yet.</label>
+            <p class="oe-help">For page numbers and the footer, print from Chrome or Edge. Firefox and Safari print the binder without page numbers.</p>
+            <button type="submit" class="btn-primary">Open binder</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -2,25 +2,36 @@
 
 from datetime import date
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request, url_for
 
 from src.models import PERSON_ROLES, Entity, Holding, LocationPoint, Person, RecurringBill
-from src.services import binder as svc
+from src.routes.main import _by_month
+from src.services import binder as svc, events as event_service, playbooks as playbook_service
 from src.services.auth_service import login_required
 from src.services.backup_schema import BACKUP_MODELS
 from src.services.estate import get_root_entity
 
 bp = Blueprint('binder', __name__)
 
-# What the toggles will switch (step 2). Base print: all off.
+# The three toggles, all off by default; each is switched on by `?name=1`.
 BASE_OPTIONS = {"planning": False, "reveal": False, "hide_empty": False}
+
+
+def read_options(args):
+    return {k: args.get(k) == "1" for k in BASE_OPTIONS}
+
+
+@bp.route('/binder/setup')
+@login_required
+def binder_setup():
+    return render_template('binder_setup.html', root=get_root_entity(), active_page='details')
 
 
 @bp.route('/binder')
 @login_required
 def binder_view():
     today = date.today()
-    options = dict(BASE_OPTIONS)
+    options = read_options(request.args)
     root = get_root_entity()
     entities = Entity.query.all()
     holdings = Holding.query.all()
@@ -36,6 +47,37 @@ def binder_view():
     bills = sorted(RecurringBill.query.all(),
                    key=lambda b: (b.next_due_date is None, b.next_due_date or date.max,
                                   b.name.lower()))
+    matrix = svc.who_gets_what(holdings, people)
+    pins = LocationPoint.query.order_by(LocationPoint.holding_id, LocationPoint.label).all()
+    extra = {}
+    if options["planning"]:
+        pb = playbook_service.death_playbook()
+        extra["playbook"] = pb
+        extra["bands"] = svc.playbook_bands(pb.steps if pb else [], roles)
+        rows = event_service.all_rows(today)
+        extra["ahead_months"] = _by_month(svc.year_ahead(rows, today), lambda r: r.date)
+        extra["attention"] = sorted(
+            (r for r in event_service.now_sections(rows, today)["attention"]),
+            key=lambda r: r.title.lower())
+    hidden = {
+        "art-ii": not any(roles.get(c) for c in ("Trustee", "SuccessorTrustee", "Executor")),
+        "art-iii": not holdings,
+        "sched-a": not cards,
+        "art-iv": not matrix["rows"] and not matrix["undesignated"],
+        "art-v": not (roles.get("Attorney") or roles.get("Medical")),
+        "art-vii": True, "art-viii": True, "sched-c": True,     # Phase C stubs
+        "art-ix": not pins,
+        "art-x": not root.notes,
+        "art-xi": not roles,
+        "sched-b": not bills,
+    }
+    if options["planning"]:
+        hidden["art-vi"] = not extra["bands"]
+        hidden["appendix"] = not (extra["ahead_months"] or extra["attention"])
+    hidden = {k for k, v in hidden.items() if v}
+    toggle_links = {k: url_for('binder.binder_view',
+                               **{o: 1 for o, on in {**options, k: not options[k]}.items() if on})
+                    for k in options}
     footer = f"{root.name} · estate binder · {svc.long_date(today)}"
     return render_template(
         'binder.html',
@@ -45,7 +87,10 @@ def binder_view():
         trustors=roles.get("Trustor", []),
         sheet=svc.balance_sheet(holdings),
         entity_sheets=svc.entity_sheets(entities, holdings),
-        matrix=svc.who_gets_what(holdings, people),
+        matrix=matrix,
         cards=cards, bills=bills,
-        pins=LocationPoint.query.order_by(LocationPoint.holding_id, LocationPoint.label).all(),
+        pins=pins,
+        toggle_links=toggle_links,
+        hidden=hidden if options["hide_empty"] else set(),
+        **extra,
         colophon=svc.colophon(holdings, svc.record_counts(BACKUP_MODELS), today))

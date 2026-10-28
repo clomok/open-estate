@@ -187,3 +187,167 @@ def test_colophon_and_helpers():
     assert c["verified_last_year"] == 1 and c["holdings"] == 3
     assert svc.long_date(date(2026, 10, 7)) == "October 7, 2026"
     assert svc.css_string('A "B" \\ <x>\n') == 'A \\"B\\" \\\\ \\3C x>'
+
+
+# --- the toggles --------------------------------------------------------------
+
+def opt_page(client, query):
+    r = client.get(f"/e/test/binder?{query}")
+    assert r.status_code == 200, r.data[:500]
+    return r.data.decode()
+
+
+def toc_of(html):
+    return re.findall(r'<li><a href="#([a-z-]+)">', html.split('id="contents"')[1].split("</section>")[0])
+
+
+def section(html, sid):
+    return html.split(f'id="{sid}"')[1].split("</section>")[0]
+
+
+@pytest.fixture
+def soon(estate):
+    """One open event inside the next year, one past it, one overdue."""
+    from datetime import timedelta
+    from src.models import Event
+    t = date.today()
+    estate.session.add_all([
+        Event(kind="task", title="Renew the umbrella policy", date=t + timedelta(days=40), phase="now"),
+        Event(kind="task", title="Far future errand", date=t + timedelta(days=500), phase="now"),
+        Event(kind="task", title="Long overdue errand", date=t - timedelta(days=3), phase="now"),
+        Event(kind="task", title="Someday filing", date=None, phase="now"),
+    ])
+    estate.session.commit()
+    return estate
+
+
+def test_planning_adds_article_vi_and_appendix_in_place(client, soon):
+    html = opt_page(client, "planning=1")
+    ids = re.findall(r'<section class="[^"]*" id="((?:art|sched)-[a-z]+|appendix)"', html)
+    assert ids == ["art-i", "art-ii", "art-iii", "sched-a", "art-iv", "art-v", "art-vi", "art-vii",
+                   "art-viii", "art-ix", "art-x", "art-xi", "sched-b", "sched-c", "appendix"]
+    toc = toc_of(html)
+    assert toc.index("art-vi") == toc.index("art-v") + 1 and toc[-2:] == ["appendix", "colophon"]
+    assert "This copy" in html and "Includes</dd>" not in html and "Includes the planning" in html
+
+
+def test_article_vi_bands_steps_and_unassigned(client, soon):
+    body = section(opt_page(client, "planning=1"), "art-vi")
+    assert "On the death of the trustor" in body
+    assert "The first 72 hours" in body and "The first year" in body and "Days 4 to 30" not in body
+    assert "Get a pronouncement of death" in body and "Estate tax return" in body
+    assert body.count("unassigned") == 2
+    assert "no one holds the" in body
+
+
+def test_article_vi_names_the_contact_who_holds_the_role(client, soon):
+    from src.models import PersonRole
+    soon.session.add(PersonRole(person_id=2, role="SuccessorTrustee"))
+    soon.session.commit()
+    body = section(opt_page(client, "planning=1"), "art-vi")
+    first = body.split("Get a pronouncement of death")[1].split("</li>")[0]
+    assert "unassigned" not in first
+    assert body.count("unassigned") == 1
+
+
+def test_appendix_events_inside_a_year_only(client, soon):
+    body = section(opt_page(client, "planning=1"), "appendix")
+    assert "Renew the umbrella policy" in body
+    assert "Far future errand" not in body and "Long overdue errand" not in body
+    assert "Needs attention" in body and "Someday filing" in body
+
+
+def test_planning_off_has_none_of_it(client, soon):
+    html = opt_page(client, "reveal=1")
+    assert 'id="art-vi"' not in html and 'id="appendix"' not in html
+    assert "art-vi" not in toc_of(html) and "appendix" not in toc_of(html)
+    assert "Renew the umbrella policy" not in html and "Get a pronouncement of death" not in html
+
+
+def test_reveal_shows_raw_value_and_cover_line(client, estate):
+    html = opt_page(client, "reveal=1")
+    assert "EXAMPLE123" in html.split('id="sched-a"')[1].split('id="art-iv"')[0]
+    assert "This copy contains account numbers and other sensitive details." in html
+    masked = page(client)
+    assert "EXAMPLE123" not in masked and "contains account numbers" not in masked
+
+
+def test_hide_empty_drops_stub_articles_and_their_contents_lines(client, estate):
+    html = opt_page(client, "hide_empty=1")
+    for sid in ("art-vii", "art-viii", "sched-c", "art-v"):
+        assert f'id="{sid}"' not in html and sid not in toc_of(html), sid
+    for sid in ("art-i", "art-iii", "sched-a", "art-iv", "art-xi", "colophon"):
+        assert f'id="{sid}"' in html and sid in toc_of(html), sid
+    full = page(client)
+    for sid in ("art-vii", "art-viii", "sched-c", "art-v"):
+        assert f'id="{sid}"' in full and sid in toc_of(full)
+
+
+def test_hide_empty_keeps_article_v_when_a_helper_exists(client, estate):
+    from src.models import PersonRole
+    estate.session.add(PersonRole(person_id=2, role="Attorney"))
+    estate.session.commit()
+    assert 'id="art-v"' in opt_page(client, "hide_empty=1")
+
+
+def test_hide_empty_keeps_appendix_while_something_needs_attention(client, estate):
+    html = opt_page(client, "planning=1&hide_empty=1")      # fixture flags gaps
+    assert 'id="art-vi"' in html and 'id="appendix"' in html
+    assert "Needs attention" in section(html, "appendix")
+
+
+def test_setup_form_and_its_submit(client, estate):
+    r = client.get("/e/test/binder/setup")
+    assert r.status_code == 200
+    html = r.data.decode()
+    for name in ("planning", "reveal", "hide_empty"):
+        assert f'name="{name}"' in html
+    assert 'action="/e/test/binder"' in html and 'method="get"' in html
+    assert "Firefox and Safari" in html and "Open binder" in html
+    sent = client.get("/e/test/binder?planning=1&hide_empty=1")      # what the browser sends
+    body = sent.data.decode()
+    assert 'id="art-vi"' in body and 'id="art-vii"' not in body and "contains account numbers" not in body
+
+
+def test_top_bar_links_flip_one_toggle(client, estate):
+    html = opt_page(client, "planning=1")
+    assert 'href="/e/test/binder"' in html                       # planning off -> back to base
+    assert 'href="/e/test/binder?planning=1&amp;reveal=1"' in html
+
+
+def test_setup_needs_login(app, estate):
+    r = app.test_client().get("/e/test/binder/setup")
+    assert r.status_code == 302 and "login" in r.headers["Location"]
+
+
+# --- step 2 service functions -------------------------------------------------
+
+def S(id, offset, pos=0, role=None, title=None):
+    return NS(id=id, offset_days=offset, position=pos, who_role=role, title=title or f"S{id}")
+
+
+def test_playbook_bands_edges_and_role_resolution():
+    ann, bob = NS(name="Ann"), NS(name="Bob")
+    steps = [S(1, 3, role="Trustee"), S(2, 4), S(3, 30, role="Mystery"), S(4, 31), S(5, 90),
+             S(6, 91), S(7, 365), S(8, 366), S(9, 0, pos=1), S(10, 0, pos=0, role="Trustee")]
+    bands = svc.playbook_bands(steps, {"Trustee": [ann, bob]})
+    got = [(h, [r["step"].id for r in rows]) for h, rows in bands]
+    assert got == [("The first 72 hours", [10, 9, 1]), ("Days 4 to 30", [2, 3]),
+                   ("Days 31 to 90", [4, 5]), ("The first year", [6, 7]), ("Later", [8])]
+    people = {r["step"].id: r["person"] for _, rows in bands for r in rows}
+    assert people[10] is ann and people[1] is ann
+    assert people[9] is None and people[3] is None          # no role / nobody holds it
+
+
+def test_playbook_bands_drops_empty_bands():
+    assert svc.playbook_bands([], {}) == []
+    assert [h for h, _ in svc.playbook_bands([S(1, 40)], {})] == ["Days 31 to 90"]
+
+
+def test_year_ahead_window_and_order():
+    today = date(2026, 10, 27)
+    R = lambda t, d, done=None: NS(title=t, date=d, done_at=done)
+    rows = [R("b", date(2027, 10, 27)), R("a", today), R("late", date(2027, 10, 28)),
+            R("past", date(2026, 10, 26)), R("undated", None),
+            R("done", date(2026, 12, 1), done=date(2026, 11, 1)), R("A2", today)]
+    assert [r.title for r in svc.year_ahead(rows, today)] == ["a", "A2", "b"]

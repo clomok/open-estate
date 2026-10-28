@@ -14,6 +14,11 @@
 <body class="binder">
     <div class="topbar no-print">
         <a href="{{ url_for('main.details_view') }}">&larr; The Trust</a>
+        {% if toggle_links %}<span class="toggles">
+            {% for key, label in [('planning', 'Planning sections'), ('reveal', 'Sensitive details'), ('hide_empty', 'Hide empty sections')] %}
+            <a href="{{ toggle_links[key] }}" class="toggle {{ 'on' if options[key] }}">{{ label }}: {{ 'on' if options[key] else 'off' }}</a>
+            {% endfor %}
+        </span>{% endif %}
         <button type="button" onclick="window.print()">Save as PDF / Print</button>
     </div>
     <main class="document">

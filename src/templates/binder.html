@@ -8,6 +8,7 @@
     ('sched-a', 'Schedule A', 'Holdings in detail'),
     ('art-iv', 'Article IV', 'Beneficiaries and distribution'),
     ('art-v', 'Article V', 'Incapacity'),
+    ('art-vi', 'Article VI', 'On the death of the trustor'),
     ('art-vii', 'Article VII', 'The instrument and companion documents'),
     ('art-viii', 'Article VIII', 'Insurance'),
     ('art-ix', 'Article IX', 'Access and household'),
@@ -15,6 +16,7 @@
     ('art-xi', 'Article XI', 'Contacts'),
     ('sched-b', 'Schedule B', 'Recurring bills and obligations'),
     ('sched-c', 'Schedule C', 'Documents inventory'),
+    ('appendix', 'Appendix', 'The year ahead and what needs attention'),
     ('colophon', 'Colophon', 'About this copy'),
 ] %}
 {% set totals = sheet.totals %}
@@ -44,7 +46,7 @@
 <section class="contents" id="contents">
     <header class="article-head"><h1>Contents</h1></header>
     <ol class="toc">
-        {% for id, no, title in toc %}<li><a href="#{{ id }}"><span class="article-no">{{ no }}</span> {{ title }}</a></li>{% endfor %}
+        {% for id, no, title in toc if id not in hidden and (options.planning or id not in ('art-vi', 'appendix')) %}<li><a href="#{{ id }}"><span class="article-no">{{ no }}</span> {{ title }}</a></li>{% endfor %}
     </ol>
     <p class="muted">Page numbers appear in the footer of each printed page.</p>
 </section>
@@ -64,17 +66,17 @@
 </section>
 
 {# --- Article II ----------------------------------------------------------- #}
-<section class="article" id="art-ii">
+{% if 'art-ii' not in hidden %}<section class="article" id="art-ii">
     {{ article_head('Article II', 'Trustees and successors') }}
     {% for code, heading in [('Trustee', 'Trustees'), ('SuccessorTrustee', 'Successor trustees'), ('Executor', 'Executor')] %}
     <h2>{{ heading }}</h2>
     {% for p in roles.get(code, []) %}{{ person_line(p) }}{% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
     {% if code == 'SuccessorTrustee' and roles.get(code) %}<p class="footnote">Listed in the order the roles were recorded; the order of succession itself is not recorded in this binder. See the instrument.</p>{% endif %}
     {% endfor %}
-</section>
+</section>{% endif %}
 
 {# --- Article III: the life map ------------------------------------------- #}
-<section class="article" id="art-iii">
+{% if 'art-iii' not in hidden %}<section class="article" id="art-iii">
     {{ article_head('Article III', 'The trust estate — the life map') }}
     <table class="ledger life-map">
         <thead><tr><th>Balance sheet</th><th class="num">Value</th></tr></thead>
@@ -116,16 +118,16 @@
         <p class="entity-net">Net: <strong>{{ s.net_cents | currency }}</strong></p>
     </div>
     {% endfor %}
-</section>
+</section>{% endif %}
 
 {# --- Schedule A ----------------------------------------------------------- #}
-<section class="article" id="sched-a">
+{% if 'sched-a' not in hidden %}<section class="article" id="sched-a">
     {{ article_head('Schedule A', 'Holdings in detail') }}
     {% for card in cards %}{{ holding_card(card, long_date) }}{% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
-</section>
+</section>{% endif %}
 
 {# --- Article IV ----------------------------------------------------------- #}
-<section class="article" id="art-iv">
+{% if 'art-iv' not in hidden %}<section class="article" id="art-iv">
     {{ article_head('Article IV', 'Beneficiaries and distribution') }}
     {% if matrix.rows %}
     <table class="matrix">
@@ -146,54 +148,77 @@
     <ul class="plain">{% for h in matrix.undesignated %}<li>{{ h.name }} <span class="muted">· {{ h.value_cents | currency }}</span></li>{% endfor %}</ul>
     {% else %}<p class="muted">Every holding that needs a beneficiary has one.</p>{% endif %}
     <p class="footnote">Only primary shares are recorded; contingent beneficiaries are not. Holdings inside a company pass with the company.</p>
-</section>
+</section>{% endif %}
 
 {# --- Article V ------------------------------------------------------------ #}
-<section class="article" id="art-v">
+{% if 'art-v' not in hidden %}<section class="article" id="art-v">
     {{ article_head('Article V', 'Incapacity') }}
     <p class="stub">Nothing recorded yet. Who acts, and where the power of attorney and health directive are kept, are not in this binder.</p>
     {% set helpers = (roles.get('Attorney', []) + roles.get('Medical', [])) %}
     {% if helpers %}<h2>People who may help</h2>
     {% for code, heading in [('Attorney', 'Attorney'), ('Medical', 'Doctor / medical')] %}{% for p in roles.get(code, []) %}{{ person_line(p, heading) }}{% endfor %}{% endfor %}{% endif %}
+</section>{% endif %}
+
+{# --- Article VI (planning) ------------------------------------------------ #}
+{% if options.planning and 'art-vi' not in hidden %}
+<section class="article" id="art-vi">
+    {{ article_head('Article VI', 'On the death of the trustor') }}
+    {% if bands %}
+    <p>{{ playbook.name }}: the steps in the order they fall, with who is named to do each.</p>
+    {% for heading, rows in bands %}
+    <h2>{{ heading }}</h2>
+    <ol class="steps">
+        {% for r in rows %}
+        <li>
+            <strong>{{ r.step.title }}</strong>{% if r.step.offset_days %} <span class="muted">· day {{ r.step.offset_days }}</span>{% endif %}
+            <div class="reach">{% if r.person %}{{ r.person.name }}{% if r.person.phone %} · {{ r.person.phone }}{% endif %}{% if r.person.email %} · {{ r.person.email }}{% endif %}{% else %}<span class="muted">unassigned{% if r.step.who_role %} — no one holds the {{ (role_labels|selectattr(0, 'eq', r.step.who_role)|map(attribute=1)|first) or r.step.who_role }} role{% endif %}</span>{% endif %}</div>
+            {% if r.step.instructions %}<p class="pre">{{ r.step.instructions }}</p>{% endif %}
+            {% if r.step.document_type %}<p class="muted">Find first: {{ r.step.document_type }}</p>{% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+    {% endfor %}
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
 </section>
+{% endif %}
 
 {# --- Articles VII – VIII (stubs) ----------------------------------------- #}
-<section class="article" id="art-vii">
+{% if 'art-vii' not in hidden %}<section class="article" id="art-vii">
     {{ article_head('Article VII', 'The instrument and companion documents') }}
     <p class="stub">Nothing recorded yet.</p>
-</section>
-<section class="article" id="art-viii">
+</section>{% endif %}
+{% if 'art-viii' not in hidden %}<section class="article" id="art-viii">
     {{ article_head('Article VIII', 'Insurance') }}
     <p class="stub">Nothing recorded yet.</p>
-</section>
+</section>{% endif %}
 
 {# --- Article IX ----------------------------------------------------------- #}
-<section class="article" id="art-ix">
+{% if 'art-ix' not in hidden %}<section class="article" id="art-ix">
     {{ article_head('Article IX', 'Access and household') }}
     {% if pins %}
     <h2>Places that matter</h2>
     <ul class="plain">{% for pt in pins %}<li><strong>{{ pt.label }}</strong> <span class="muted">· {{ pt.holding.name }}</span>{% if pt.description %} — {{ pt.description }}{% endif %}</li>{% endfor %}</ul>
     {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
-</section>
+</section>{% endif %}
 
 {# --- Article X ------------------------------------------------------------ #}
-<section class="article" id="art-x">
+{% if 'art-x' not in hidden %}<section class="article" id="art-x">
     {{ article_head('Article X', 'Instructions and wishes') }}
     {% if root.notes %}<p class="pre">{{ root.notes }}</p>{% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
-</section>
+</section>{% endif %}
 
 {# --- Article XI ----------------------------------------------------------- #}
-<section class="article" id="art-xi">
+{% if 'art-xi' not in hidden %}<section class="article" id="art-xi">
     {{ article_head('Article XI', 'Contacts') }}
     {% set labels = dict(role_labels) %}
     {% for code, people in roles.items() %}
     <h2>{{ labels.get(code, code) }}</h2>
     {% for p in people %}{{ person_line(p) }}{% endfor %}
     {% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
-</section>
+</section>{% endif %}
 
 {# --- Schedule B ----------------------------------------------------------- #}
-<section class="article" id="sched-b">
+{% if 'sched-b' not in hidden %}<section class="article" id="sched-b">
     {{ article_head('Schedule B', 'Recurring bills and obligations') }}
     {% if bills %}
     <table class="ledger">
@@ -203,13 +228,29 @@
         {% endfor %}</tbody>
     </table>
     {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
-</section>
+</section>{% endif %}
 
 {# --- Schedule C ----------------------------------------------------------- #}
-<section class="article" id="sched-c">
+{% if 'sched-c' not in hidden %}<section class="article" id="sched-c">
     {{ article_head('Schedule C', 'Documents inventory') }}
     <p class="stub">Nothing recorded yet.</p>
+</section>{% endif %}
+
+{# --- Appendix (planning) -------------------------------------------------- #}
+{% if options.planning and 'appendix' not in hidden %}
+<section class="article" id="appendix">
+    {{ article_head('Appendix', 'The year ahead and what needs attention') }}
+    <h2>The year ahead</h2>
+    {% for month, rows in ahead_months %}
+    <h2>{{ month.strftime('%B %Y') }}</h2>
+    <ul class="plain">{% for r in rows %}<li><strong>{{ long_date(r.date) }}</strong> — {{ r.title }}{% if r.description %} <span class="muted">· {{ r.description }}</span>{% endif %}</li>{% endfor %}</ul>
+    {% else %}<p class="stub">Nothing dated in the next twelve months.</p>{% endfor %}
+    <h2>Needs attention</h2>
+    {% if attention %}
+    <ul class="plain">{% for r in attention %}<li><strong>{{ r.title }}</strong>{% if r.description %} <span class="muted">· {{ r.description }}</span>{% endif %}</li>{% endfor %}</ul>
+    {% else %}<p class="muted">Nothing needs attention.</p>{% endif %}
 </section>
+{% endif %}
 
 {# --- Colophon ------------------------------------------------------------- #}
 <section class="article colophon" id="colophon">
