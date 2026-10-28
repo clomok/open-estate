@@ -4,6 +4,7 @@ from src.services.auth_service import login_required
 from src.services.timeline_service import history_rows, HISTORY_KINDS
 from src.services import events as event_service, feeds, playbooks as playbook_service
 from src.services.default_playbook import DISCLAIMER
+from src.services.binder import ledger_totals
 from src.services.estate import get_root_entity, addon_entities
 from src.models import (Person, Holding, Playbook, FAMILY_ROLES, DESIGNATION_KIND_LABELS,
                         EVENT_KINDS, EVENT_KIND_LABELS, EVENT_PHASES, EVENT_PHASE_LABELS,
@@ -13,12 +14,6 @@ from src.holding_types import SIDES, SIDE_META
 from src.money import cents_to_dollars
 
 bp = Blueprint('main', __name__)
-
-
-def ledger_totals(holdings):
-    totals = {side: sum(h.value_cents for h in holdings if h.side == side) for side in SIDES}
-    totals["net"] = totals["asset"] - totals["liability"]
-    return totals
 
 
 def _filters():

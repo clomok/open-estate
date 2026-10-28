@@ -38,6 +38,13 @@ from src.services.dates import add_interval
 _NEEDS_BENEFICIARY = (None, "individual", "retirement_account", "trust")
 
 
+def needs_beneficiary(h):
+    """Is this holding one somebody must be named to inherit?"""
+    if h.side not in ("asset", "equity"):
+        return False
+    return (h.entity.kind if h.entity_id else None) in _NEEDS_BENEFICIARY
+
+
 @dataclass
 class DerivedItem:
     source: str
@@ -204,8 +211,7 @@ def _contact_items(today):
 def _share_items(today):
     out = []
     for h in Holding.query.filter(Holding.side.in_(("asset", "equity"))):
-        holder = h.entity.kind if h.entity_id else None
-        if holder not in _NEEDS_BENEFICIARY:
+        if not needs_beneficiary(h):
             continue
         totals = h.share_totals()
         if not totals:
