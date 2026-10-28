@@ -205,3 +205,31 @@ def test_the_registry_rejects_slugs_that_could_leave_the_folder(tmp_path):
         with pytest.raises(estates.EstateError):
             estates.db_path(str(tmp_path), bad)
     assert not os.listdir(tmp_path)
+
+
+def _root_name(app, slug):
+    with app.app_context():
+        g.estate = slug
+        return get_root_entity(create=False).name
+
+
+def test_the_placeholder_trust_takes_the_name_of_its_estate(two, client):
+    app, _ = two
+    assert _root_name(app, "alpha") == "The Family Trust"
+    r = client.get("/e/alpha/details")
+    assert r.status_code == 200
+    assert b"The Alpha Family Trust" in r.data
+    assert b"The Family Trust" not in r.data
+    assert _root_name(app, "alpha") == "The Alpha Family Trust"
+    assert _root_name(app, "beta") == "The Family Trust"
+
+
+def test_a_trust_name_someone_typed_is_kept(two, client):
+    app, _ = two
+    with app.app_context():
+        g.estate = "beta"
+        get_root_entity().name = "The Okafor Living Trust"
+        _db.session.commit()
+    r = client.get("/e/beta/details")
+    assert b"The Okafor Living Trust" in r.data
+    assert _root_name(app, "beta") == "The Okafor Living Trust"
