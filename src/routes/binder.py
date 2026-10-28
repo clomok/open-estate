@@ -1,8 +1,9 @@
 """The printed binder: one long readable document, printed with the browser."""
 
+import os
 from datetime import date
 
-from flask import Blueprint, render_template, request, url_for
+from flask import Blueprint, current_app, render_template, request, url_for
 
 from src.models import PERSON_ROLES, Entity, Holding, LocationPoint, Person, RecurringBill
 from src.routes.main import _by_month
@@ -30,8 +31,13 @@ def binder_setup():
 @bp.route('/binder')
 @login_required
 def binder_view():
+    return render_binder(read_options(request.args))
+
+
+def render_binder(options, offline=False):
+    """The binder page as HTML. `offline` is the copy saved into a backup zip:
+    one self-contained file, with no top bar and no link back into the app."""
     today = date.today()
-    options = read_options(request.args)
     root = get_root_entity()
     entities = Entity.query.all()
     holdings = Holding.query.all()
@@ -75,12 +81,18 @@ def binder_view():
         hidden["art-vi"] = not extra["bands"]
         hidden["appendix"] = not (extra["ahead_months"] or extra["attention"])
     hidden = {k for k, v in hidden.items() if v}
-    toggle_links = {k: url_for('binder.binder_view',
+    toggle_links = None if offline else {k: url_for('binder.binder_view',
                                **{o: 1 for o, on in {**options, k: not options[k]}.items() if on})
                     for k in options}
     footer = f"{root.name} · estate binder · {svc.long_date(today)}"
+    inline_css = None
+    if offline:
+        css_dir = os.path.join(current_app.static_folder, 'css')
+        inline_css = "\n".join(open(os.path.join(css_dir, f), encoding='utf-8').read()
+                               for f in ('style.css', 'binder.css'))
     return render_template(
         'binder.html',
+        offline=offline, inline_css=inline_css,
         root=root, today=today, options=options, long_date=svc.long_date,
         footer=svc.css_string(footer),
         roles=roles, role_labels=PERSON_ROLES,

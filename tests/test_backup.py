@@ -322,3 +322,21 @@ def test_a_v3_backup_with_no_version_is_still_recognised(db):
     ok, msg = restore_from_json(json.dumps(v3))
     assert ok, msg
     assert db.session.query(Event).filter_by(kind="task").count() == 2
+
+
+def test_zip_carries_the_masked_offline_binder(db):
+    """The paper can be rebuilt from the zip alone: a self-contained binder
+    file, sensitive details masked, nothing that points back into the app."""
+    _populate(db)
+    with zipfile.ZipFile(generate_backup_zip()) as archive:
+        names = archive.namelist()
+        binder_name = next(n for n in names if n.startswith("BINDER_"))
+        html = archive.read(binder_name).decode()
+        readme = archive.read(next(n for n in names if n.startswith("READ_ME_"))).decode()
+    assert binder_name.endswith(".html")
+    assert 'id="art-i"' in html and "Article I" in html
+    assert "EXAMPLE123" not in html and "ACCT-9911" not in html
+    assert "<style>" in html and 'rel="stylesheet"' not in html
+    body = html.split("<body", 1)[1]
+    assert "/e/" not in body and "The Trust" not in body and "toggle" not in body and 'href="/' not in body
+    assert "BINDER_" in readme

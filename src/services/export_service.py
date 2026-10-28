@@ -65,6 +65,8 @@ def _readme(data):
     <body>
         <h1>{heading} - data backup</h1>
         <p>Generated: {data['timestamp']} (format version {data['version']})</p>
+        <p>The printed binder is saved beside this file as BINDER_&lt;date&gt;.html:
+        open it in a browser and print it, with sensitive details masked.</p>
         <hr>
         {''.join(sections)}
         <h2>Record counts</h2>
@@ -72,6 +74,15 @@ def _readme(data):
     </body>
     </html>
     """
+
+
+def _binder_html():
+    """The printed binder (toggles off, sensitive details masked) as one
+    self-contained file, so the paper can be rebuilt from the zip alone."""
+    from flask import current_app
+    from src.routes.binder import BASE_OPTIONS, render_binder
+    with current_app.test_request_context():
+        return render_binder(dict(BASE_OPTIONS), offline=True)
 
 
 def generate_backup_zip():
@@ -82,6 +93,7 @@ def generate_backup_zip():
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"estate_data_{datetime.now().strftime('%Y%m%d')}.json", json_dump)
         zf.writestr(f"READ_ME_{datetime.now().strftime('%Y%m%d')}.html", _readme(data))
+        zf.writestr(f"BINDER_{datetime.now().strftime('%Y%m%d')}.html", _binder_html())
 
     memory_file.seek(0)
     return memory_file

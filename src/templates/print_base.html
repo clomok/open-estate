@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ root.name }} — Estate binder</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/binder.css') }}">
+    {% if inline_css %}<style>{{ inline_css|safe }}</style>
+    {% else %}<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/binder.css') }}">{% endif %}
     {# Chrome prints @page margin boxes; the text is a literal because var() is unreliable there. #}
     <style>
         @page { @bottom-left { content: "{{ footer|safe }}"; font: 9pt var(--serif); color: #555; } }
@@ -13,7 +14,7 @@
 </head>
 <body class="binder">
     <div class="topbar no-print">
-        <a href="{{ url_for('main.details_view') }}">&larr; The Trust</a>
+        {% if not offline %}<a href="{{ url_for('main.details_view') }}">&larr; The Trust</a>{% endif %}
         {% if toggle_links %}<span class="toggles">
             {% for key, label in [('planning', 'Planning sections'), ('reveal', 'Sensitive details'), ('hide_empty', 'Hide empty sections')] %}
             <a href="{{ toggle_links[key] }}" class="toggle {{ 'on' if options[key] }}">{{ label }}: {{ 'on' if options[key] else 'off' }}</a>
