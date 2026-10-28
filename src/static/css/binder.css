@@ -87,7 +87,10 @@ tr.incomplete td { background: var(--oxblood-soft); }
     .binder .document section { margin-bottom: 0; }
     .article, .cover, .contents { break-before: page; }
     .cover { break-before: auto; }
-    .holding-card, .person-line, tr, .entity-sheet { break-inside: avoid; }
+    .person-line, tr, .entity-sheet { break-inside: avoid; }
+    /* A holding card may split, but never between its head and facts, nor through its tables. */
+    .holding-head, .binder h2, .binder h3 { break-after: avoid; }
+    .holding-card dl.facts, .holding-card table.mini, .subitems { break-inside: avoid; }
     thead { display: table-header-group; }
     a { color: inherit; text-decoration: none; }
     .rule-gold, .article-head, tr.incomplete td { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
