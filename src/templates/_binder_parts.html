@@ -1,0 +1,56 @@
+{# Pieces of the binder that repeat. #}
+
+{% macro person_line(p, roles=none) %}
+<div class="person-line">
+    <strong>{{ p.name }}</strong>{% if p.kind == 'organisation' %} <span class="muted">(organisation)</span>{% endif %}
+    {% if roles %}<span class="muted"> — {{ roles }}</span>{% endif %}
+    <div class="reach">{% if p.phone %}{{ p.phone }}{% endif %}{% if p.phone and p.email %} · {% endif %}{% if p.email %}{{ p.email }}{% endif %}{% if not p.phone and not p.email %}<span class="muted">No phone or email recorded</span>{% endif %}</div>
+</div>
+{% endmacro %}
+
+{% macro holding_card(card, long_date) %}
+{% set h = card.holding %}
+<div class="holding-card" id="h-{{ h.id }}">
+    <div class="holding-head">
+        <div><strong>{{ h.name }}</strong> <span class="muted">· {{ h.side_meta.singular }} · {{ h.type_label }}</span></div>
+        <div class="holding-value">{{ h.value_cents | currency }}{% if h.side == 'liability' %} <span class="muted">owed</span>{% endif %}</div>
+    </div>
+    <dl class="facts">
+        <dt>Held by</dt><dd>{{ h.entity.name if h.entity else 'The trust' }}</dd>
+        {% if h.owner %}<dt>Titled to</dt><dd>{{ h.owner.name }}</dd>{% endif %}
+        {% if h.ownership_pct is not none %}<dt>Ownership</dt><dd>{{ '%g' % h.ownership_pct }}%</dd>{% endif %}
+        {% if h.secured_by %}<dt>Secured by</dt><dd>{{ h.secured_by.name }}</dd>{% endif %}
+        {% for debt in h.secures %}<dt>Secures</dt><dd>{{ debt.name }} ({{ debt.value_cents | currency }})</dd>{% endfor %}
+        {% for label, text in card.facts %}<dt>{{ label }}</dt><dd>{{ text }}</dd>{% endfor %}
+        <dt>Valued</dt><dd>{% if card.valuations %}{{ card.valuations[0].value_cents | currency }} as of {{ long_date(card.valuations[0].date) }}{% else %}No valuation recorded{% endif %}</dd>
+        <dt>Last verified</dt><dd>{% if h.last_verified %}{{ long_date(h.last_verified) }}{% else %}Never verified{% endif %}</dd>
+        {% if h.notes %}<dt>Notes</dt><dd class="pre">{{ h.notes }}</dd>{% endif %}
+    </dl>
+    {% if h.structures or h.location_points or h.vendors %}
+    <ul class="subitems">
+        {% for s in h.structures %}<li>Structure: {{ s.name }}{% if s.structure_type %} ({{ s.structure_type }}){% endif %}{% if s.description %} — {{ s.description }}{% endif %}</li>{% endfor %}
+        {% for pt in h.location_points %}<li>Pin: {{ pt.label }}{% if pt.description %} — {{ pt.description }}{% endif %}</li>{% endfor %}
+        {% for v in h.vendors %}<li>{{ v.role }}: {{ v.provider.name }}{% if v.provider.phone %}, {{ v.provider.phone }}{% endif %}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if card.valuations|length > 1 %}
+    <table class="mini">
+        <thead><tr><th>Valuation date</th><th class="num">Value</th><th>Source</th></tr></thead>
+        <tbody>{% for v in card.valuations %}<tr><td>{{ long_date(v.date) }}</td><td class="num">{{ v.value_cents | currency }}</td><td>{{ v.source or '' }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro article_head(no, title) %}
+<header class="article-head"><span class="article-no">{{ no }}</span><h1>{{ title }}</h1></header>
+{% endmacro %}
+
+{% macro sheet_list(title, holdings) %}
+{% if holdings %}
+<table class="ledger">
+    <thead><tr><th>{{ title }}</th><th class="num">Value</th></tr></thead>
+    <tbody>{% for h in holdings %}<tr><td>{{ h.name }} <span class="muted">· {{ h.type_label }}</span></td><td class="num">{{ h.value_cents | currency }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endif %}
+{% endmacro %}

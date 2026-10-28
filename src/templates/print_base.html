@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ root.name }} — Estate binder</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/binder.css') }}">
+    {# Chrome prints @page margin boxes; the text is a literal because var() is unreliable there. #}
+    <style>
+        @page { @bottom-left { content: "{{ footer|safe }}"; font: 9pt var(--serif); color: #555; } }
+    </style>
+</head>
+<body class="binder">
+    <div class="topbar no-print">
+        <a href="{{ url_for('main.details_view') }}">&larr; The Trust</a>
+        <button type="button" onclick="window.print()">Save as PDF / Print</button>
+    </div>
+    <main class="document">
+        {% block document %}{% endblock %}
+    </main>
+</body>
+</html>

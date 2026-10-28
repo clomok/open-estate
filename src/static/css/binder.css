@@ -1,0 +1,94 @@
+/* The printed binder. Loaded after style.css (for the colour tokens); this
+   page has no sidebar. On screen it is one long readable document on ivory
+   paper; printed (Save as PDF) each Article starts a fresh page. */
+
+body.binder { display: block; background: var(--parchment); }
+
+.binder .topbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.6rem 1.2rem; background: var(--royal-deep); color: #fff;
+}
+.binder .topbar a { color: #fff; text-decoration: none; }
+.binder .topbar button {
+    font: inherit; padding: 0.4rem 0.9rem; border: 1px solid var(--gold);
+    background: var(--gold); color: #fff; border-radius: var(--radius); cursor: pointer;
+}
+
+.binder .document {
+    max-width: 8.5in; margin: 1.5rem auto; padding: 1in 0.75in;
+    background: var(--ivory); box-shadow: var(--shadow);
+    font-family: var(--serif); font-size: 11pt; line-height: 1.5; color: var(--ink);
+}
+.binder .document section { margin-bottom: 2.5rem; }
+
+.rule-gold { height: 0; border-top: 2px solid var(--gold); margin: 1.2rem 0; }
+.article-head { border-bottom: 1px solid var(--gold); margin-bottom: 1.2rem; padding-bottom: 0.4rem; }
+.article-no { display: block; font: 600 0.75rem var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.article-head h1 { font-size: 1.7rem; margin: 0.15rem 0 0; }
+.binder h2 { font-size: 1.15rem; margin: 1.4rem 0 0.5rem; }
+.binder h3 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+
+.cover { text-align: center; padding: 1.5in 0 1in; }
+.cover-kicker { font: 600 0.85rem var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
+.cover-title { font-size: 2.6rem; margin: 0.5rem 0; }
+.cover-sub { font-style: italic; color: var(--ink-soft); }
+.cover-facts { max-width: 5in; margin: 2rem auto; text-align: left; }
+.notice { font-weight: 600; color: var(--oxblood); }
+.disclaimer { font-size: 0.9em; color: var(--ink-soft); font-style: italic; margin-top: 1.5rem; }
+
+.toc { list-style: none; padding: 0; margin: 0 0 1rem; }
+.toc li { padding: 0.35rem 0; border-bottom: 1px dotted var(--tan-deep); }
+.toc a { text-decoration: none; color: var(--royal-ink); }
+.toc .article-no { display: inline-block; min-width: 6.5rem; }
+
+dl.facts { display: grid; grid-template-columns: 11rem 1fr; gap: 0.25rem 1rem; margin: 0 0 1rem; }
+dl.facts dt { font: 600 0.72rem var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); padding-top: 0.2rem; }
+dl.facts dd { margin: 0; }
+
+table { width: 100%; border-collapse: collapse; margin: 0 0 1rem; font-size: 0.95em; }
+th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--tan); vertical-align: top; }
+thead th { font: 600 0.72rem var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); border-bottom: 1px solid var(--tan-deep); }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.indent { padding-left: 1.5rem; }
+.side-row th { background: var(--parchment-deep); color: var(--royal-ink); font-size: 0.9rem; }
+.net-row th { font-size: 1.05rem; border-top: 2px solid var(--gold); border-bottom: none; color: var(--royal-ink); }
+.muted { color: var(--stone); }
+.stub { color: var(--stone); font-style: italic; }
+.footnote { font-size: 0.85em; color: var(--ink-soft); }
+.pre { white-space: pre-wrap; }
+ul.plain { margin: 0 0 1rem; padding-left: 1.2rem; }
+
+.person-line { padding: 0.35rem 0; border-bottom: 1px solid var(--tan); }
+.person-line .reach { font-size: 0.9em; color: var(--ink-soft); }
+
+.entity-sheet { margin-bottom: 1.2rem; padding: 0.5rem 0 0.2rem; border-top: 1px solid var(--tan-deep); }
+.entity-net { text-align: right; margin: 0; }
+
+.holding-card { border: 1px solid var(--tan-deep); border-radius: var(--radius); padding: 0.7rem 0.9rem; margin-bottom: 0.9rem; }
+.holding-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; }
+.holding-value { font-weight: 600; white-space: nowrap; }
+.holding-card dl.facts { grid-template-columns: 9rem 1fr; margin-bottom: 0.5rem; }
+.subitems { margin: 0 0 0.5rem; padding-left: 1.2rem; font-size: 0.92em; }
+table.mini { font-size: 0.85em; margin: 0.3rem 0 0; }
+
+tr.incomplete td { background: var(--oxblood-soft); }
+.flag { font: 600 0.7rem var(--sans); color: var(--oxblood); text-transform: uppercase; }
+.kind { font-size: 0.75em; }
+
+/* ---- Print ---------------------------------------------------------------- */
+@page { size: letter; margin: 0.75in 0.75in 0.9in; }
+@page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 9pt var(--serif); color: #555; } }
+
+@media print {
+    .no-print, .topbar { display: none !important; }
+    body.binder { background: #fff; color: #000; }
+    .binder .document { max-width: none; margin: 0; padding: 0; box-shadow: none; background: #fff; }
+    .binder .document section { margin-bottom: 0; }
+    .article, .cover, .contents { break-before: page; }
+    .cover { break-before: auto; }
+    .holding-card, .person-line, tr, .entity-sheet { break-inside: avoid; }
+    thead { display: table-header-group; }
+    a { color: inherit; text-decoration: none; }
+    .rule-gold, .article-head, tr.incomplete td { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

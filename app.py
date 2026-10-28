@@ -121,6 +121,7 @@ def create_app(config_class=Config):
     from src.routes.settings import bp as settings_bp
     from src.routes.manage import bp as manage_bp
     from src.routes.estates import bp as estates_bp
+    from src.routes.binder import bp as binder_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(estates_bp)
@@ -128,6 +129,7 @@ def create_app(config_class=Config):
     app.register_blueprint(main_bp, url_prefix='/e/<estate>')
     app.register_blueprint(settings_bp, url_prefix='/e/<estate>/settings')
     app.register_blueprint(manage_bp, url_prefix='/e/<estate>/manage')
+    app.register_blueprint(binder_bp, url_prefix='/e/<estate>')
 
     return app
 

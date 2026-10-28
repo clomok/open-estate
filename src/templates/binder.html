@@ -1,0 +1,225 @@
+{% extends "print_base.html" %}
+{% from "_binder_parts.html" import person_line, holding_card, article_head, sheet_list %}
+
+{% set toc = [
+    ('art-i', 'Article I', 'Declaration'),
+    ('art-ii', 'Article II', 'Trustees and successors'),
+    ('art-iii', 'Article III', 'The trust estate — the life map'),
+    ('sched-a', 'Schedule A', 'Holdings in detail'),
+    ('art-iv', 'Article IV', 'Beneficiaries and distribution'),
+    ('art-v', 'Article V', 'Incapacity'),
+    ('art-vii', 'Article VII', 'The instrument and companion documents'),
+    ('art-viii', 'Article VIII', 'Insurance'),
+    ('art-ix', 'Article IX', 'Access and household'),
+    ('art-x', 'Article X', 'Instructions and wishes'),
+    ('art-xi', 'Article XI', 'Contacts'),
+    ('sched-b', 'Schedule B', 'Recurring bills and obligations'),
+    ('sched-c', 'Schedule C', 'Documents inventory'),
+    ('colophon', 'Colophon', 'About this copy'),
+] %}
+{% set totals = sheet.totals %}
+
+{% block document %}
+
+{# --- Cover ---------------------------------------------------------------- #}
+<section class="cover" id="cover">
+    <div class="rule-gold"></div>
+    <p class="cover-kicker">Estate binder</p>
+    <h1 class="cover-title">{{ root.name }}</h1>
+    <p class="cover-sub">A summary and map of the whole estate</p>
+    <div class="rule-gold"></div>
+    <dl class="facts cover-facts">
+        <dt>As of</dt><dd>{{ long_date(today) }}</dd>
+        <dt>Estate</dt><dd>{{ estate.label if estate else '' }}{% if estate %} <span class="muted">({{ estate.slug }})</span>{% endif %}</dd>
+        <dt>This copy</dt>
+        <dd>{{ 'Includes' if options.planning else 'Does not include' }} the planning sections ·
+            sensitive details {{ 'shown in full' if options.reveal else 'masked to the last four characters' }} ·
+            empty sections {{ 'hidden' if options.hide_empty else 'shown' }}</dd>
+    </dl>
+    {% if options.reveal %}<p class="notice">This copy contains account numbers and other sensitive details.</p>{% endif %}
+    <p class="disclaimer">This binder is a summary and a map, not the trust instrument. Where it differs from the signed instrument, the instrument controls. It is not legal advice.</p>
+</section>
+
+{# --- Contents ------------------------------------------------------------- #}
+<section class="contents" id="contents">
+    <header class="article-head"><h1>Contents</h1></header>
+    <ol class="toc">
+        {% for id, no, title in toc %}<li><a href="#{{ id }}"><span class="article-no">{{ no }}</span> {{ title }}</a></li>{% endfor %}
+    </ol>
+    <p class="muted">Page numbers appear in the footer of each printed page.</p>
+</section>
+
+{# --- Article I ------------------------------------------------------------ #}
+<section class="article" id="art-i">
+    {{ article_head('Article I', 'Declaration') }}
+    <dl class="facts">
+        <dt>Name of the trust</dt><dd>{{ root.name }}</dd>
+        <dt>Kind</dt><dd>{{ root.kind_label }}</dd>
+        <dt>Established</dt><dd>{% if root.date_established %}{{ long_date(root.date_established) }}{% else %}Not recorded{% endif %}</dd>
+        <dt>Trustor{{ 's' if trustors|length != 1 }}</dt>
+        <dd>{% for p in trustors %}{{ p.name }}{{ ', ' if not loop.last }}{% else %}Not recorded{% endfor %}</dd>
+        <dt>Reviewed</dt><dd>{{ root.review_frequency or 'Not recorded' }}</dd>
+        <dt>Next review</dt><dd>{% if root.next_review_date %}{{ long_date(root.next_review_date) }}{% else %}Not scheduled{% endif %}</dd>
+    </dl>
+</section>
+
+{# --- Article II ----------------------------------------------------------- #}
+<section class="article" id="art-ii">
+    {{ article_head('Article II', 'Trustees and successors') }}
+    {% for code, heading in [('Trustee', 'Trustees'), ('SuccessorTrustee', 'Successor trustees'), ('Executor', 'Executor')] %}
+    <h2>{{ heading }}</h2>
+    {% for p in roles.get(code, []) %}{{ person_line(p) }}{% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
+    {% if code == 'SuccessorTrustee' and roles.get(code) %}<p class="footnote">Listed in the order the roles were recorded; the order of succession itself is not recorded in this binder. See the instrument.</p>{% endif %}
+    {% endfor %}
+</section>
+
+{# --- Article III: the life map ------------------------------------------- #}
+<section class="article" id="art-iii">
+    {{ article_head('Article III', 'The trust estate — the life map') }}
+    <table class="ledger life-map">
+        <thead><tr><th>Balance sheet</th><th class="num">Value</th></tr></thead>
+        {% for side, label in [('asset', 'Assets'), ('liability', 'Liabilities')] %}
+        <tbody>
+            <tr class="side-row"><th>{{ label }}</th><th class="num">{{ totals[side] | currency }}</th></tr>
+            {% for type_label, hs, subtotal in sheet.by_side[side] %}
+            <tr><td class="indent">{{ type_label }} <span class="muted">({{ hs|length }})</span></td><td class="num">{{ subtotal | currency }}</td></tr>
+            {% else %}
+            <tr><td class="indent stub" colspan="2">Nothing recorded yet.</td></tr>
+            {% endfor %}
+        </tbody>
+        {% endfor %}
+        <tfoot><tr class="net-row"><th>Net worth <span class="muted">(assets less liabilities)</span></th><th class="num" id="net-worth">{{ totals.net | currency }}</th></tr></tfoot>
+    </table>
+
+    <h2>Equity stakes</h2>
+    {% if sheet.by_side.equity %}
+    <table class="ledger">
+        <thead><tr><th>Stake</th><th class="num">Share</th><th class="num">Value</th></tr></thead>
+        <tbody>
+            {% for type_label, hs, subtotal in sheet.by_side.equity %}{% for h in hs %}
+            <tr><td>{{ h.name }} <span class="muted">· {{ type_label }}</span></td><td class="num">{% if h.ownership_pct is not none %}{{ '%g' % h.ownership_pct }}%{% endif %}</td><td class="num">{{ h.value_cents | currency }}</td></tr>
+            {% endfor %}{% endfor %}
+        </tbody>
+        <tfoot><tr><th colspan="2">Total equity stakes</th><th class="num">{{ totals.equity | currency }}</th></tr></tfoot>
+    </table>
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+    <p class="footnote">Equity stakes are shown beside net worth, not inside it: the company a stake is in may itself be listed here, and counting both would count it twice.</p>
+
+    <h2>By entity</h2>
+    {% for s in entity_sheets %}
+    <div class="entity-sheet" id="entity-{{ s.entity.id }}">
+        <h3>{{ s.entity.name }} <span class="muted">· {{ s.entity.kind_label }}</span></h3>
+        {{ sheet_list('Assets', s.assets) }}
+        {{ sheet_list('Liabilities', s.liabilities) }}
+        {{ sheet_list('Equity stakes', s.equity) }}
+        {% if not (s.assets or s.liabilities or s.equity) %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+        <p class="entity-net">Net: <strong>{{ s.net_cents | currency }}</strong></p>
+    </div>
+    {% endfor %}
+</section>
+
+{# --- Schedule A ----------------------------------------------------------- #}
+<section class="article" id="sched-a">
+    {{ article_head('Schedule A', 'Holdings in detail') }}
+    {% for card in cards %}{{ holding_card(card, long_date) }}{% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
+</section>
+
+{# --- Article IV ----------------------------------------------------------- #}
+<section class="article" id="art-iv">
+    {{ article_head('Article IV', 'Beneficiaries and distribution') }}
+    {% if matrix.rows %}
+    <table class="matrix">
+        <thead><tr><th>Holding</th>{% for p in matrix.beneficiaries %}<th class="num">{{ p.name }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+        <tbody>
+            {% for r in matrix.rows %}
+            <tr class="{{ 'complete' if r.complete else 'incomplete' }}">
+                <td>{{ r.holding.name }}</td>
+                {% for p in matrix.beneficiaries %}{% set c = r.cells.get(p.id) %}<td class="num">{% if c %}{{ '%g' % c[0] }}%<div class="muted kind">{{ c[1] }}</div>{% endif %}</td>{% endfor %}
+                <td class="num">{{ '%g' % r.total_pct }}%{% if not r.complete %} <span class="flag">not 100%</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+    <h2>No beneficiary recorded</h2>
+    {% if matrix.undesignated %}
+    <ul class="plain">{% for h in matrix.undesignated %}<li>{{ h.name }} <span class="muted">· {{ h.value_cents | currency }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="muted">Every holding that needs a beneficiary has one.</p>{% endif %}
+    <p class="footnote">Only primary shares are recorded; contingent beneficiaries are not. Holdings inside a company pass with the company.</p>
+</section>
+
+{# --- Article V ------------------------------------------------------------ #}
+<section class="article" id="art-v">
+    {{ article_head('Article V', 'Incapacity') }}
+    <p class="stub">Nothing recorded yet. Who acts, and where the power of attorney and health directive are kept, are not in this binder.</p>
+    {% set helpers = (roles.get('Attorney', []) + roles.get('Medical', [])) %}
+    {% if helpers %}<h2>People who may help</h2>
+    {% for code, heading in [('Attorney', 'Attorney'), ('Medical', 'Doctor / medical')] %}{% for p in roles.get(code, []) %}{{ person_line(p, heading) }}{% endfor %}{% endfor %}{% endif %}
+</section>
+
+{# --- Articles VII – VIII (stubs) ----------------------------------------- #}
+<section class="article" id="art-vii">
+    {{ article_head('Article VII', 'The instrument and companion documents') }}
+    <p class="stub">Nothing recorded yet.</p>
+</section>
+<section class="article" id="art-viii">
+    {{ article_head('Article VIII', 'Insurance') }}
+    <p class="stub">Nothing recorded yet.</p>
+</section>
+
+{# --- Article IX ----------------------------------------------------------- #}
+<section class="article" id="art-ix">
+    {{ article_head('Article IX', 'Access and household') }}
+    {% if pins %}
+    <h2>Places that matter</h2>
+    <ul class="plain">{% for pt in pins %}<li><strong>{{ pt.label }}</strong> <span class="muted">· {{ pt.holding.name }}</span>{% if pt.description %} — {{ pt.description }}{% endif %}</li>{% endfor %}</ul>
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+</section>
+
+{# --- Article X ------------------------------------------------------------ #}
+<section class="article" id="art-x">
+    {{ article_head('Article X', 'Instructions and wishes') }}
+    {% if root.notes %}<p class="pre">{{ root.notes }}</p>{% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+</section>
+
+{# --- Article XI ----------------------------------------------------------- #}
+<section class="article" id="art-xi">
+    {{ article_head('Article XI', 'Contacts') }}
+    {% set labels = dict(role_labels) %}
+    {% for code, people in roles.items() %}
+    <h2>{{ labels.get(code, code) }}</h2>
+    {% for p in people %}{{ person_line(p) }}{% endfor %}
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endfor %}
+</section>
+
+{# --- Schedule B ----------------------------------------------------------- #}
+<section class="article" id="sched-b">
+    {{ article_head('Schedule B', 'Recurring bills and obligations') }}
+    {% if bills %}
+    <table class="ledger">
+        <thead><tr><th>Bill</th><th>Payee</th><th>Holding</th><th>Frequency</th><th>Autopay</th><th>Next due</th><th class="num">Amount</th></tr></thead>
+        <tbody>{% for b in bills %}
+            <tr><td>{{ b.name }}</td><td>{{ b.payee or '' }}</td><td>{{ b.holding.name }}</td><td>{{ b.frequency or '' }}</td><td>{{ 'Yes' if b.is_autopay else 'No' }}</td><td>{{ long_date(b.next_due_date) if b.next_due_date else '—' }}</td><td class="num">{{ b.amount_cents | currency }}</td></tr>
+        {% endfor %}</tbody>
+    </table>
+    {% else %}<p class="stub">Nothing recorded yet.</p>{% endif %}
+</section>
+
+{# --- Schedule C ----------------------------------------------------------- #}
+<section class="article" id="sched-c">
+    {{ article_head('Schedule C', 'Documents inventory') }}
+    <p class="stub">Nothing recorded yet.</p>
+</section>
+
+{# --- Colophon ------------------------------------------------------------- #}
+<section class="article colophon" id="colophon">
+    {{ article_head('Colophon', 'About this copy') }}
+    <p>Generated {{ long_date(colophon.generated) }}. {{ colophon.holdings }} holdings are recorded;
+       {{ colophon.verified_last_year }} of them were checked by a person within the last year.</p>
+    <table class="mini">
+        <thead><tr><th>Records</th><th class="num">Count</th></tr></thead>
+        <tbody>{% for label, n in colophon.counts.items() %}<tr><td>{{ label|replace('_', ' ')|capitalize }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="disclaimer">This binder is a summary and a map, not the trust instrument. Where it differs from the signed instrument, the instrument controls. It is not legal advice.</p>
+</section>
+{% endblock %}
