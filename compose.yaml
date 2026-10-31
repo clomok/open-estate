@@ -36,7 +36,12 @@ services:
     env_file:
       - datasets/site.env
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
+      # python:3.11-slim ships no curl, so a curl probe fails on every check and
+      # the container reads "unhealthy" forever. Probe with the interpreter the
+      # image has; urlopen raises on any non-2xx, which is the non-zero exit.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:5000/login', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3
+      # The boot runs scripts/upgrade_db.py before gunicorn; give it room.
+      start_period: 30s
